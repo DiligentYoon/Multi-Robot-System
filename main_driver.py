@@ -15,8 +15,8 @@ import time
 from typing import List
 
 from task.env.cbf_env import CBFEnv
-from task.models.models import DifferentiableCBFLayer
-from task.utils import get_nominal_control
+from task.models.hocbf import DifferentiableCBFLayer
+from task.utils.control_utils import get_nominal_control
 from visualization import draw_frame
 import copy
 import imageio.v2 as imageio
@@ -188,7 +188,7 @@ def run_single_simulation(
                 }
                 cbf_history[j].append(agent_cbf_info)
 
-            # --- 콘솔 로그 ---
+            # --- CLI Log ---
             pos_str = " | ".join(
                 [f"A{i}: ({env.robot_locations[i,0]:.3f}, {env.robot_locations[i,1]:.3f})"
                  for i in range(env.num_agent)]
@@ -264,7 +264,7 @@ def run_single_simulation(
         traceback.print_exc()
 
     finally:
-        # --- 마지막 프레임은 항상 한 번 저장 ---
+        # --- Save final frame ---
         try:
             if 'fig' in locals() and fig is not None and 'env' in locals():
                 if 'info' in locals() and 'actions' in locals():
@@ -361,7 +361,7 @@ def run_single_simulation(
                 # step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_conn
                 data = np.column_stack([steps_arr, time_arr, traj, nom, safe, cbf_arr])
 
-                header = "step,time,x,y,a_nom,w_nom,a_safe,w_safe,obs_avoid,agent_conn"
+                header = "step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_conn"
 
                 csv_path = os.path.join(map_out_dir, f"agent_{i}_log.csv")
                 np.savetxt(csv_path, data, delimiter=",", header=header, comments="")

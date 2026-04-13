@@ -5,7 +5,7 @@ from abc import abstractmethod
 from typing import Tuple, Optional
 
 from .env_cfg import EnvCfg
-from task.utils import *
+from task.utils.sensor_utils import *
 
 class MapInfo:
     def __init__(self, cfg: dict):

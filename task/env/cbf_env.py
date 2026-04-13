@@ -1,15 +1,15 @@
 import numpy as np
 import math
 import copy
+import torch
 from typing import Tuple, List
 
 from .cbf_env_cfg import CBFEnvCfg
 from task.base.env.env import Env
 from task.graph.graph import ConnectivityGraph
-from task.graph.graph_utils import *
-from task.graph.kdtree import RegionKDTree
-from task.graph.tree_utils import *
-from task.utils import *
+from task.utils.graph_utils import *
+from task.utils.sensor_utils import *
+from task.utils.transform_utils import *
 
 
 class CBFEnv(Env):
@@ -30,7 +30,6 @@ class CBFEnv(Env):
         self.robot_radius = self.cfg.d_obs
 
         # 핵심 Planning State
-        self.global_kd_tree = RegionKDTree((0, self.map_info.H, 0, self.map_info.W), valid_threshold=self.cfg.valid_threshold)
         self.connectivity_graph = ConnectivityGraph(self.num_agent)
         self.connectivity_traj = [[] for _ in range(self.num_agent)]
         self.root_mask = np.zeros(self.num_agent, dtype=np.int_)
@@ -819,70 +818,6 @@ class CBFEnv(Env):
 
                 print('Team decision')
 
-            elif self.assign_mode == "target_knwown":
-                gt = self.map_info.gt          # 예: GT 레이블 맵
-                mm = self.map_info.map_mask
-                GOAL_LABEL = mm["goal"]
-
-                # 1) goal 셀들 찾기
-                goal_rc = np.argwhere(gt == GOAL_LABEL)   # shape: (K, 2) [r,c]
-                if goal_rc.shape[0] == 0:
-                    raise ValueError("[fixed] No GOAL cells in gt map.")
-
-                # 2) 중심점(centroid) 계산 (row/col 평균)
-                r_c = int(round(goal_rc[:, 0].mean()))
-                c_c = int(round(goal_rc[:, 1].mean()))
-                goal_rc_center = np.array([r_c, c_c], dtype=int)
-
-                # 3) 모든 에이전트에 동일 타깃 할당
-                num_agents = self.num_agent
-                targets_rc = np.repeat(goal_rc_center[None, :], num_agents, axis=0)  # (N,2) 모두 같은 (r,c)
-
-                # 4) world 좌표로 변환 (root 선정, MST용)
-                target_world = []
-                for (rr, cc) in targets_rc:
-                    x, y = self.map_info.grid_to_world(rr, cc)
-                    target_world.append([x, y])
-                target_world = np.asarray(target_world, dtype=float)
-
-                # 5) root 선택 (region/fluid와 동일 패턴)
-                if target_world.shape[0] > 0:
-                    radius_root = 0.5
-                    counts     = np.zeros(num_agents, dtype=int)
-                    mean_dists = np.zeros(num_agents, dtype=float)
-
-                    for i in range(num_agents):
-                        pos_i = self.robot_locations[i]
-                        dists = np.linalg.norm(target_world - pos_i, axis=1)
-
-                        counts[i]     = np.sum(dists <= radius_root)
-                        mean_dists[i] = np.mean(dists)
-
-                    if np.any(counts > 0):
-                        root_id = int(np.argmax(counts))
-                    else:
-                        root_id = int(np.argmin(mean_dists))
-                else:
-                    root_id = 0
-
-                self.root_mask.fill(0)
-                self.root_mask[root_id] = 1
-                self.connectivity_graph.update_and_compute_mst(self.robot_locations, root_id)
-
-                # 6) Hungarian 매칭 (사실상 전부 같은 타깃이라 큰 의미는 없음)
-                assigned_rc = assign_targets_hungarian(
-                    self.map_info, self.robot_locations, targets_rc, num_agents
-                )
-
-                self.regions        = None
-                self.valid_regions  = None
-                self.cluster_infos  = {}
-                self.assigned_rc    = np.asarray(assigned_rc, dtype=int)
-                self.assigned_rc    = self.assigned_rc[:, ::-1].copy()
-                self.assigned_rc_viz = self.assigned_rc.copy()    
-
-                print('Team decision')
-
             elif self.assign_mode == "target_frontier":
                 # ------------------------------------------------
                 # Frontier 기반 타깃 선정: 모든 Frontier 점수화 -> 상위 N개 선택
@@ -1092,7 +1027,7 @@ class CBFEnv(Env):
                     end_world = pos_i_op
 
 
-                # 이후 A* 탐색 및 리스트 추가 로직은 동일하게 유지
+            # 이후 A* 탐색 및 리스트 추가 로직은 동일하게 유지
             # ----- 라우팅 요약 로그 생성 -----
             if not follower:
                 # 그냥 타깃으로 가는 경우: 이유는 안 붙임
