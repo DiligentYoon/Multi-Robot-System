@@ -461,5 +461,38 @@ class CBFEnv(Env):
             "follower"  : routing["follower_list"],
         }
 
+        infos["viz"] = self._get_viz_info()
         self.tree_interval += 1
         return infos
+
+    def _get_viz_info(self) -> dict:
+        """Collect all env-side data needed for visualization into a single dict.
+
+        Computes connectivity_pairs here so main_driver does not need to access
+        env internals directly.
+        """
+        connectivity_pairs = []
+        for i in range(self.num_agent):
+            pos1 = self.robot_locations[i]
+            if not self.root_mask[i]:
+                parent_id = self.connectivity_graph.get_parent(i)
+                pos2 = self.robot_locations[parent_id] if parent_id != -1 else pos1
+            else:
+                pos2 = pos1
+            connectivity_pairs.append((pos1.copy(), pos2.copy()))
+
+        return {
+            "map_info":          self.map_info,
+            "num_agent":         self.num_agent,
+            "robot_locations":   self.robot_locations.copy(),
+            "robot_angles":      self.robot_angles.copy(),
+            "cfg_d_max":         self.cfg.d_max,
+            "cfg_fov":           self.cfg.fov,
+            "cfg_sensor_range":  self.cfg.sensor_range,
+            "obstacle_states":   self.obstacle_states.copy(),
+            "num_obstacles":     self.num_obstacles.copy(),
+            "targets_prob_heat": self.targets_prob_heat,
+            "connectivity_pairs": connectivity_pairs,
+            "connectivity_trajs": self.connectivity_traj,
+            "assigned_dests":    self.assigned_rc_viz,
+        }

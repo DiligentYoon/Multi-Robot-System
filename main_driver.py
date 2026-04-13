@@ -17,9 +17,9 @@ from typing import List
 from task.env.cbf_env import CBFEnv
 from task.models.hocbf import DifferentiableCBFLayer
 from task.utils.control_utils import get_nominal_control
+from task.logger.sim_logger import SimLogger
 from visualization import draw_frame
 import copy
-import imageio.v2 as imageio
 
 
 def run_single_simulation(
@@ -70,13 +70,7 @@ def run_single_simulation(
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 
     # --- Data tracking ---
-    nominal_inputs_history = [[] for _ in range(num_agents)]  # [ [ [a_nom,w_nom], ... ], ...]
-    safe_inputs_history    = [[] for _ in range(num_agents)]  # [ [ [a_safe,w_safe], ... ], ...]
-    path_history           = [[] for _ in range(num_agents)]  # [ [ (x,y), ... ], ...]
-    cbf_history            = [[] for _ in range(num_agents)]
-
-    # GIF
-    gif_frames = [] if gif_interval is not None else None
+    logger = SimLogger(num_agents, env.cfg.d_obs, env.neighbor_radius)
 
     # --- Simulation parameters (Stop sign) ---
     prev_positions  = None
@@ -156,42 +150,13 @@ def run_single_simulation(
                     termination_info["stop_reason"] = "unknown"
 
             # --- Logging ---
-            for j in range(num_agents):
-                # position
-                path_history[j].append((env.robot_locations[j, 0],
-                                        env.robot_locations[j, 1]))
-
-                # control input
-                nominal_inputs_history[j].append(raw_actions[j].copy())
-                safe_inputs_history[j].append(actions[j].detach().cpu().numpy())
-
-                # Barrier value
-                if env.num_obstacles[j] > 0:
-                    obs_state_j = env.obstacle_states[j, :env.num_obstacles[j]]
-                    dist = np.linalg.norm(obs_state_j, axis=1)
-                    min_ids = np.argmin(dist)
-                    min_obs_dist_sq = (
-                        obs_state_j[min_ids, 0]**2 + obs_state_j[min_ids, 1]**2
-                    )
-                else:
-                    min_obs_dist_sq = 0.3**2  # dummy
-
-                p_c = next_info["safety"]["p_c_agent"][j].reshape(-1)
-                if len(p_c) > 0:
-                    min_agent_dist_sq = p_c[0]**2 + p_c[1]**2
-                else:
-                    min_agent_dist_sq = 0.0
-
-                agent_cbf_info = {
-                    "obs_avoid": min_obs_dist_sq - env.cfg.d_obs**2,
-                    "agent_conn": env.neighbor_radius**2 - min_agent_dist_sq,
-                }
-                cbf_history[j].append(agent_cbf_info)
+            logger.record(next_info, raw_actions, actions)
 
             # --- CLI Log ---
+            locs = next_info["viz"]["robot_locations"]
             pos_str = " | ".join(
-                [f"A{i}: ({env.robot_locations[i,0]:.3f}, {env.robot_locations[i,1]:.3f})"
-                 for i in range(env.num_agent)]
+                [f"A{i}: ({locs[i,0]:.3f}, {locs[i,1]:.3f})"
+                 for i in range(next_info["viz"]["num_agent"])]
             )
             print(
                 f"[{map_tag} {episode_index}] "
@@ -203,34 +168,17 @@ def run_single_simulation(
             need_gif = (gif_interval is not None) and (step_num % gif_interval == 0)
 
             if need_png or need_gif:
-                # connectivity_pairs
-                connectivity_pairs = []
-                for i in range(env.num_agent):
-                    pos1 = env.robot_locations[i]
-                    if not env.root_mask[i]:
-                        parent_id = env.connectivity_graph.get_parent(i)
-                        if parent_id != -1:
-                            pos2 = env.robot_locations[parent_id]
-                        else:
-                            pos2 = pos1
-                    else:
-                        pos2 = pos1
-                    connectivity_pairs.append((pos1, pos2))
-
-                viz_data = {
-                    "paths": path_history,
-                    "obs_local": env.obstacle_states,
-                    "last_cmds": [(actions[i][0].item(), actions[i][1].item()) for i in range(num_agents)],
-                    "connectivity_pairs": connectivity_pairs,
-                    "target_local": info["nominal"]["p_targets"],
-                    "connectivity_trajs": env.connectivity_traj,
-                    "assigned_dests": getattr(env, "assigned_rc_viz", None),
-                    "follower": info["nominal"]["follower"],
-                }
+                viz_data = dict(next_info["viz"])
+                viz_data["paths"]        = logger.get_path_history()
+                viz_data["obs_local"]    = viz_data["obstacle_states"]
+                viz_data["last_cmds"]    = [(actions[i][0].item(), actions[i][1].item())
+                                            for i in range(num_agents)]
+                viz_data["target_local"] = next_info["nominal"]["p_targets"]
+                viz_data["follower"]     = next_info["nominal"]["follower"]
 
                 ax1.cla()
                 ax2.cla()
-                draw_frame(ax1, ax2, env, viz_data, layout=layout)
+                draw_frame(ax1, ax2, viz_data, layout=layout)
 
                 # PNG
                 if need_png:
@@ -240,15 +188,8 @@ def run_single_simulation(
                     fig.savefig(frame_path, dpi=150, bbox_inches="tight")
 
                 # GIF Frame
-                if need_gif and gif_frames is not None:
-                    fig.canvas.draw()
-                    w, h = fig.canvas.get_width_height()
-
-                    buf = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
-                    img_rgba = buf.reshape(h, w, 4)
-
-                    img_rgb = img_rgba[..., :3]
-                    gif_frames.append(img_rgb.copy())
+                if need_gif:
+                    logger.append_gif_frame(fig)
 
             # --- Update ---
             obs = next_obs
@@ -266,41 +207,23 @@ def run_single_simulation(
     finally:
         # --- Save final frame ---
         try:
-            if 'fig' in locals() and fig is not None and 'env' in locals():
-                if 'info' in locals() and 'actions' in locals():
-                    connectivity_pairs = []
-                    for i in range(env.num_agent):
-                        pos1 = env.robot_locations[i]
-                        if not env.root_mask[i]:
-                            parent_id = env.connectivity_graph.get_parent(i)
-                            if parent_id != -1:
-                                pos2 = env.robot_locations[parent_id]
-                            else:
-                                pos2 = pos1
-                        else:
-                            pos2 = pos1
-                        connectivity_pairs.append((pos1, pos2))
+            if 'fig' in locals() and fig is not None and 'info' in locals() and 'actions' in locals():
+                viz_data = dict(info["viz"])
+                viz_data["paths"]        = logger.get_path_history()
+                viz_data["obs_local"]    = viz_data["obstacle_states"]
+                viz_data["last_cmds"]    = [(actions[i][0].item(), actions[i][1].item())
+                                            for i in range(num_agents)]
+                viz_data["target_local"] = info["nominal"]["p_targets"]
 
-                    viz_data = {
-                        "paths": path_history,
-                        "obs_local": env.obstacle_states,
-                        "last_cmds": [(actions[i][0].item(), actions[i][1].item())
-                                      for i in range(num_agents)],
-                        "connectivity_pairs": connectivity_pairs,
-                        "target_local": info["nominal"]["p_targets"],
-                        "connectivity_trajs": env.connectivity_traj,
-                        "assigned_dests": getattr(env, "assigned_rc_viz", None),
-                    }
+                ax1.cla()
+                ax2.cla()
+                draw_frame(ax1, ax2, viz_data, layout=layout)
 
-                    ax1.cla()
-                    ax2.cla()
-                    draw_frame(ax1, ax2, env, viz_data, layout=layout)
-
-                    final_frame_path = os.path.join(
-                        map_out_dir, f"frame_{step_num:04d}_final.png"
-                    )
-                    fig.savefig(final_frame_path, dpi=150, bbox_inches="tight")
-                    print(f"[{map_tag} {episode_index}] Saved final frame: {final_frame_path}")
+                final_frame_path = os.path.join(
+                    map_out_dir, f"frame_{step_num:04d}_final.png"
+                )
+                fig.savefig(final_frame_path, dpi=150, bbox_inches="tight")
+                print(f"[{map_tag} {episode_index}] Saved final frame: {final_frame_path}")
 
         except Exception as e:
             print(f"[{map_tag} {episode_index}] Failed to save final frame: {e}")
@@ -338,43 +261,13 @@ def run_single_simulation(
 
         # --- CSV ---
         try:
-            dt = env.dt
-            for i in range(num_agents):
-                traj = np.asarray(path_history[i], dtype=float)           # (T,2)
-                nom  = np.asarray(nominal_inputs_history[i], dtype=float) # (T,2)
-                safe = np.asarray(safe_inputs_history[i], dtype=float)    # (T,2)
-
-                cbf_arr = np.asarray(
-                    [[d["obs_avoid"], d["agent_conn"]] for d in cbf_history[i]],
-                    dtype=float
-                ) 
-
-                T = min(traj.shape[0], nom.shape[0], safe.shape[0], cbf_arr.shape[0])
-                traj    = traj[:T]
-                nom     = nom[:T]
-                safe    = safe[:T]
-                cbf_arr = cbf_arr[:T]
-
-                steps_arr = np.arange(T)
-                time_arr  = steps_arr * dt
-
-                # step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_conn
-                data = np.column_stack([steps_arr, time_arr, traj, nom, safe, cbf_arr])
-
-                header = "step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_conn"
-
-                csv_path = os.path.join(map_out_dir, f"agent_{i}_log.csv")
-                np.savetxt(csv_path, data, delimiter=",", header=header, comments="")
-                print(f"[{map_tag} {episode_index}] Saved CSV: {csv_path}")
+            logger.save_csv(map_out_dir, env.dt)
         except Exception as e:
             print(f"[{map_tag} {episode_index}] Failed to save CSV logs: {e}")
 
         # --- GIF ---
         try:
-            if gif_frames is not None and len(gif_frames) > 0:
-                gif_path = os.path.join(map_out_dir, f"{map_tag}_{episode_index:03d}.gif")
-                imageio.mimsave(gif_path, gif_frames, fps=gif_fps)
-                print(f"[{map_tag} {episode_index}] Saved GIF: {gif_path}")
+            logger.save_gif(map_out_dir, map_tag, episode_index, gif_fps)
         except Exception as e:
             print(f"[{map_tag} {episode_index}] Failed to save GIF: {e}")
 
@@ -474,7 +367,7 @@ if __name__ == '__main__':
         cfg=config,
         i_shape_indices=i_shape_indices,
         square_indices=square_indices,
-        steps=10000,
+        steps=500,
         frame_interval=50,
         root_out_dir="results/default",
         gif_interval=100,    

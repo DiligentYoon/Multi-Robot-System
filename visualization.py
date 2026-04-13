@@ -54,16 +54,17 @@ def local_to_world(robot_pos: np.ndarray, local_points: np.ndarray, yaw: float) 
 # ======================================================================================
 # Drawing Functions (Adapted for RL Environment)
 # ======================================================================================
-def draw_frame(ax_gt=None, ax_belief=None, env=None, viz_data: dict=None,
+def draw_frame(ax_gt=None, ax_belief=None, viz_data: dict=None,
                layout: str = "straight", figsize: tuple | None = None):
     """
     Draws a single frame of the simulation for the RL environment.
-    
+
     Args:
         ax_gt: Matplotlib axis for the ground truth map.
         ax_belief: Matplotlib axis for the belief map.
-        env: The CBFEnv environment instance.
-        viz_data: A dictionary containing visualization data like paths, commands, etc.
+        viz_data: A dictionary containing all visualization data.
+                  Env-side fields (map_info, robot_locations, etc.) come from
+                  infos["viz"] populated by CBFEnv._get_viz_info().
     """
 
     # === (NEW) axes auto-create & layout control ===
@@ -88,14 +89,14 @@ def draw_frame(ax_gt=None, ax_belief=None, env=None, viz_data: dict=None,
         ax_belief = axs_flat[1]
         created_axes = True
         
-    maps = env.map_info
+    maps = viz_data["map_info"]
     ax_gt.clear(); ax_belief.clear()
     ax_gt.imshow(maps.gt, cmap=GT_CMAP, norm=GT_NORM, origin='upper')
     ax_belief.imshow(maps.belief_frontier, cmap=BELIEF_CMAP, norm=BELIEF_NORM, origin='upper')
 
     # --- NEW: overlay targets_prob heatmap if available ---
-    if getattr(env, "targets_prob_heat", None) is not None:
-        heat = env.targets_prob_heat.astype(float)  # (H, W), NaN 포함
+    if viz_data.get("targets_prob_heat") is not None:
+        heat = viz_data["targets_prob_heat"].astype(float)  # (H, W), NaN 포함
 
         # NaN은 그대로 마스크
         heat_ma = np.ma.masked_invalid(heat)
@@ -137,15 +138,20 @@ def draw_frame(ax_gt=None, ax_belief=None, env=None, viz_data: dict=None,
         row, col = maps.world_to_grid(x, y)
         return col, row
 
-    for i in range(env.num_agent):
-        robot = env.robot_locations[i]
-        robot_yaw = env.robot_angles[i]
+    num_agent = viz_data["num_agent"]
+    robot_locations = viz_data["robot_locations"]
+    robot_angles = viz_data["robot_angles"]
+    num_obstacles = viz_data["num_obstacles"]
+
+    for i in range(num_agent):
+        robot = robot_locations[i]
+        robot_yaw = robot_angles[i]
         color = AGENT_COLORS[i % len(AGENT_COLORS)]
 
         # --- Safety and Connectivity Circles ---
         cx, cy = world_to_img(robot[0], robot[1])
-        # Get safety/connectivity distances from the environment config
-        radius_min_px = env.cfg.d_max*0.5/ maps.res_m
+        # Get safety/connectivity distances from viz_data
+        radius_min_px = viz_data["cfg_d_max"] * 0.5 / maps.res_m
         # radius_max_px = env.neighbor_radius * 0.5 / maps.res_m
 
         for ax in (ax_gt, ax_belief):
@@ -160,11 +166,11 @@ def draw_frame(ax_gt=None, ax_belief=None, env=None, viz_data: dict=None,
             ax.add_patch(center_dot)
 
         # --- FOV sector (semi-transparent) ---
-        half = math.radians(env.cfg.fov / 2.0)
+        half = math.radians(viz_data["cfg_fov"] / 2.0)
         angles = np.linspace(-half, half, 20)
         poly_world = [(robot[0], robot[1])] + [
-            (robot[0] + env.cfg.sensor_range * math.cos(robot_yaw + a),
-             robot[1] + env.cfg.sensor_range * math.sin(robot_yaw + a)) for a in angles
+            (robot[0] + viz_data["cfg_sensor_range"] * math.cos(robot_yaw + a),
+             robot[1] + viz_data["cfg_sensor_range"] * math.sin(robot_yaw + a)) for a in angles
         ]
         poly_img = [world_to_img(x, y) for (x, y) in poly_world]
         for ax in (ax_gt, ax_belief):
@@ -179,7 +185,7 @@ def draw_frame(ax_gt=None, ax_belief=None, env=None, viz_data: dict=None,
             ax.scatter(fx, fy, s=25, c=color, marker='.', zorder=4, alpha=0.4)
 
         # Obstacle
-        obs_local_pos = viz_data["obs_local"][i, :env.num_obstacles[i]]
+        obs_local_pos = viz_data["obs_local"][i, :num_obstacles[i]]
         if obs_local_pos.shape[0] > 0:
             obs_world_pos = local_to_world(robot, obs_local_pos, robot_yaw)
             fx, fy = zip(*[world_to_img(wx, wy) for wx, wy in obs_world_pos])
