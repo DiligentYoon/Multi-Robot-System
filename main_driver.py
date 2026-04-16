@@ -70,7 +70,7 @@ def run_single_simulation(
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 
     # --- Data tracking ---
-    logger = SimLogger(num_agents, env.cfg.d_obs, env.neighbor_radius)
+    logger = SimLogger(num_agents, env.cfg.d_obs, env.cfg.d_safe, env.neighbor_radius)
 
     # --- Simulation parameters (Stop sign) ---
     prev_positions  = None
@@ -240,6 +240,13 @@ def run_single_simulation(
             print(f"[{map_tag}] Failed to compute coverage: {e}")
             coverage_info = None
 
+        violation_info = None
+        try:
+            violation_info = compute_cbf_violation_rates(logger)
+        except Exception as e:
+            print(f"[{map_tag}] Failed to compute CBF violation rates: {e}")
+            violation_info = None
+
         try:
             with open(summary_path, "w") as f:
                 f.write(f"map_tag: {map_tag}\n")
@@ -255,6 +262,14 @@ def run_single_simulation(
                     f.write(f"covered_free_cells: {coverage_info['covered_free']}\n")
                     f.write(f"total_gt_free_cells: {coverage_info['total_gt_free']}\n")
                     f.write(f"belief_free_cells: {coverage_info['belief_free']}\n")
+
+                if violation_info is None:
+                    f.write("cbf_violation_rates: NA (compute failed)\n")
+                else:
+                    f.write(f"cbf_total_steps: {violation_info['total_steps']}\n")
+                    f.write(f"cbf_obs_violation_rate: {violation_info['obs_violation_rate']:.6f}\n")
+                    f.write(f"cbf_avoid_violation_rate: {violation_info['avoid_violation_rate']:.6f}\n")
+                    f.write(f"cbf_conn_violation_rate: {violation_info['conn_violation_rate']:.6f}\n")
 
         except Exception as e:
             print(f"[{map_tag}] Failed to write termination summary: {e}")
@@ -305,12 +320,65 @@ def compute_free_coverage(env, verbose: bool = True):
     }
 
 
+def compute_cbf_violation_rates(logger: SimLogger, verbose: bool = True) -> dict:
+    """Compute per-condition CBF barrier violation rates over the episode.
+
+    A timestep t is counted as violated if any agent has barrier value < 0 at t.
+
+    Returns:
+        dict with keys:
+            obs_violation_rate   (float): obstacle avoidance violation rate
+            avoid_violation_rate (float): inter-agent collision avoidance violation rate
+            conn_violation_rate  (float): connectivity violation rate
+            total_steps          (int):   number of recorded steps used
+    """
+    N = logger._num_agents
+    histories = logger.cbf_history
+
+    T = min(len(histories[j]) for j in range(N))
+    if T == 0:
+        return {
+            "obs_violation_rate":   0.0,
+            "avoid_violation_rate": 0.0,
+            "conn_violation_rate":  0.0,
+            "total_steps":          0,
+        }
+
+    obs_violated   = 0
+    avoid_violated = 0
+    conn_violated  = 0
+
+    for t in range(T):
+        if any(histories[j][t]["obs_avoid"]   < 0 for j in range(N)):
+            obs_violated   += 1
+        if any(histories[j][t]["agent_avoid"] < 0 for j in range(N)):
+            avoid_violated += 1
+        if any(histories[j][t]["agent_conn"]  < 0 for j in range(N)):
+            conn_violated  += 1
+
+    obs_rate   = obs_violated   / T
+    avoid_rate = avoid_violated / T
+    conn_rate  = conn_violated  / T
+
+    if verbose:
+        print(f"cbf_total_steps = {T}")
+        print(f"cbf_obs_violation_rate   = {obs_rate:.6f}")
+        print(f"cbf_avoid_violation_rate = {avoid_rate:.6f}")
+        print(f"cbf_conn_violation_rate  = {conn_rate:.6f}")
+
+    return {
+        "obs_violation_rate":   float(obs_rate),
+        "avoid_violation_rate": float(avoid_rate),
+        "conn_violation_rate":  float(conn_rate),
+        "total_steps":          T,
+    }
+
 
 def run_validation(
     cfg: dict,
     i_shape_indices: List[int],
     square_indices: List[int],
-    steps: int = 2000,
+    steps: int = 5000,
     frame_interval: int = 100,
     root_out_dir: str = "results/default",
     gif_interval: int = 5,

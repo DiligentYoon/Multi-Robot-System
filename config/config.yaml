@@ -9,7 +9,7 @@ env:
   physics_dt: 0.1
   device: "cuda"
 
-  num_agent: 9
+  num_agent: 3
   max_velocity: 0.3
   max_yaw_rate: 1.0 # radians 1.5
   max_acceleration: 0.1 # 0.1

@@ -10,9 +10,10 @@ class SimLogger:
     main_driver.run_single_simulation().
     """
 
-    def __init__(self, num_agents: int, d_obs: float, neighbor_radius: float) -> None:
+    def __init__(self, num_agents: int, d_obs: float, d_safe: float, neighbor_radius: float) -> None:
         self._num_agents = num_agents
         self._d_obs = d_obs
+        self._d_safe = d_safe
         self._neighbor_radius = neighbor_radius
 
         self.path_history: list[list[tuple]] = [[] for _ in range(num_agents)]
@@ -57,14 +58,22 @@ class SimLogger:
             else:
                 min_obs_dist_sq = 0.3 ** 2  # dummy
 
+            p_agents_j = info["safety"]["p_agents"][j]
+            if len(p_agents_j) > 0:
+                p_ag = np.asarray(p_agents_j)  # (K, 2)
+                min_agent_avoid = float((p_ag[:, 0] ** 2 + p_ag[:, 1] ** 2).min()) - self._d_safe ** 2
+            else:
+                min_agent_avoid = 1.0  # no neighbors → safe dummy
+
             p_c = info["safety"]["p_c_agent"][j].reshape(-1)
             min_agent_dist_sq = (
                 p_c[0] ** 2 + p_c[1] ** 2 if len(p_c) > 0 else 0.0
             )
 
             self.cbf_history[j].append({
-                "obs_avoid":  min_obs_dist_sq - self._d_obs ** 2,
-                "agent_conn": self._neighbor_radius ** 2 - min_agent_dist_sq,
+                "obs_avoid":   min_obs_dist_sq - self._d_obs ** 2,
+                "agent_avoid": min_agent_avoid,
+                "agent_conn":  self._neighbor_radius ** 2 - min_agent_dist_sq,
             })
 
     def append_gif_frame(self, fig) -> None:

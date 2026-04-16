@@ -365,7 +365,7 @@ class CBFEnv(Env):
         
         terminated = self.is_collided_obstacle | self.is_collided_drone | self.is_reached_goal
 
-        # ========= 여기부터 로그 추가 =========
+        # ========= 로그 추가 =========
         if np.any(terminated):
             term_mask = terminated.squeeze(-1)  # (N,)
 
