@@ -416,7 +416,12 @@ class CBFEnv(Env):
             root_id = plan_result["root_id"]
             self.root_mask.fill(0)
             self.root_mask[root_id] = 1
-            self.connectivity_graph.update_and_compute_mst(self.robot_locations, root_id)
+            if self.cfg.graph_mode == "nn_tree":
+                self.connectivity_graph.update_nearest_neighbor_tree(
+                    self.robot_locations, root_id, self.neighbor_radius
+                )
+            else:
+                self.connectivity_graph.update_and_compute_mst(self.robot_locations, root_id)
 
             # Visualization info
             self.targets_prob_heat = plan_result["viz"]["targets_prob_heat"]

@@ -62,6 +62,62 @@ class ConnectivityGraph:
         if len(visited) != self.num_agents:
             print("[Warning] 모든 에이전트가 MST에 포함되지 않았습니다. 그래프가 분리되었을 수 있습니다.")
 
+    def update_nearest_neighbor_tree(
+        self,
+        agent_positions: np.ndarray,
+        root_agent_id: int,
+        neighbor_radius: float,
+    ) -> None:
+        """Builds a spanning tree using greedy proximity insertion.
+
+        Starting from root_agent_id, iteratively connects the closest
+        unconnected agent (within neighbor_radius if possible, otherwise
+        the globally closest) to the growing tree. Parent direction is
+        determined by insertion order: the already-inserted agent becomes
+        the parent of the newly inserted agent.
+
+        Args:
+            agent_positions: Current agent positions, shape (N, 2).
+            root_agent_id: Agent designated as the tree root (parent = -1).
+            neighbor_radius: Preferred maximum edge length. Used as a soft
+                constraint — ignored (fallback) when no candidate exists
+                within radius.
+        """
+        if agent_positions.shape[0] != self.num_agents:
+            raise ValueError(
+                f"Position count ({agent_positions.shape[0]}) does not match "
+                f"num_agents ({self.num_agents})."
+            )
+
+        self.parents.fill(-1)
+
+        inserted = [root_agent_id]           # S: already in tree
+        uninserted = list(range(self.num_agents))
+        uninserted.remove(root_agent_id)     # U: not yet in tree
+
+        while uninserted:
+            # Compute distances between all (s, u) pairs
+            s_pos = agent_positions[inserted]     # (|S|, 2)
+            u_pos = agent_positions[uninserted]   # (|U|, 2)
+            dist = cdist(s_pos, u_pos)            # (|S|, |U|)
+
+            # Find best (s, u) within neighbor_radius first
+            within = dist <= neighbor_radius
+            if within.any():
+                # Among in-radius candidates, pick the closest pair
+                masked = np.where(within, dist, np.inf)
+                s_local, u_local = np.unravel_index(masked.argmin(), dist.shape)
+            else:
+                # Fallback: ignore radius, pick globally closest pair
+                s_local, u_local = np.unravel_index(dist.argmin(), dist.shape)
+
+            s_global = inserted[s_local]
+            u_global = uninserted[u_local]
+
+            self.parents[u_global] = s_global
+            inserted.append(u_global)
+            uninserted.pop(u_local)
+
 
     def get_parent(self, agent_id: int) -> int | np.ndarray:
         """

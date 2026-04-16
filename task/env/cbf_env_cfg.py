@@ -33,6 +33,8 @@ class CBFEnvCfg(EnvCfg):
 
 
         self.assign_mode = "target_unknwown" # or target_unknwown or target_known
+        if not hasattr(self, "graph_mode"):
+            self.graph_mode = "mst"  # "mst" | "nn_tree"
 
         # Reward Info
         self.reward_weights = {
