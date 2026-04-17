@@ -281,7 +281,7 @@ class TargetUnknownPlanner(AbstractPlanner):
         # ---------------------------------------
         # 5) targets_base에서 에이전트 수만큼 샘플링 (spread 제한 포함)
         # ---------------------------------------
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed=cfg.seed)
         max_pairwise_cells = 80.0  # 필요 시 cfg에서 가져오기
         max_trials = 100
 

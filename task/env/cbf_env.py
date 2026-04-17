@@ -29,7 +29,6 @@ class CBFEnv(Env):
 
         # Reward related
         self.last_explored_area = 0.0
-        self.reward_weights = self.cfg.reward_weights
         self.robot_radius = self.cfg.d_obs
 
         # 핵심 Planning State

@@ -246,7 +246,7 @@ class Env():
         self.robot_locations = np.stack([world_x, world_y], axis=1)
 
         # Initialize headings
-        self.robot_angles = 0 * np.random.uniform(0, 2*np.pi, size=self.num_agent)
+        self.robot_angles = np.zeros(self.num_agent, dtype=np.float32)
         # Perform initial sensing update for each agent
         for i in range(self.num_agent):
             cell = self.map_info.world_to_grid_np(self.robot_locations[i])

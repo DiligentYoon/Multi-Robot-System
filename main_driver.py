@@ -18,22 +18,25 @@ from task.env.cbf_env import CBFEnv
 from task.models.hocbf import DifferentiableCBFLayer
 from task.utils.control_utils import get_nominal_control
 from task.logger.sim_logger import SimLogger
-from visualization import draw_frame
+from visualization import draw_frame, make_figure
 import copy
 
 
 def run_single_simulation(
     cfg: dict,
     episode_index: int,
-    map_tag: str,              
+    map_tag: str,
     steps: int,
-    layout: str,
     root_out_dir: str = "validation_results",
-    frame_interval: int = 50,     # Interval of PNG 
+    frame_interval: int = 50,     # Interval of PNG
     gif_interval: int | None = None,  # Interval of GIF
     gif_fps: int = 30,            # FPS of GIF
 ) -> None:
     
+    seed = cfg['env']['seed']
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
     env_cfg = copy.deepcopy(cfg)
     map_filepath = f"maps/{map_tag}/map_{episode_index:03d}.png"
     env_cfg['env']['map']['map_filepath'] = map_filepath
@@ -66,8 +69,11 @@ def run_single_simulation(
     num_agents = cfg['env']['num_agent']
     print("Safety CBF layer created.")
 
+    # --- Visualization options ---
+    show_traj = cfg.get("visualization", {}).get("show_trajectory", True)
+
     # --- Figure for offscreen rendering ---
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    fig, ax1, ax2 = make_figure(env.map_info.gt.shape)
 
     # --- Data tracking ---
     logger = SimLogger(num_agents, env.cfg.d_obs, env.cfg.d_safe, env.neighbor_radius)
@@ -178,7 +184,7 @@ def run_single_simulation(
 
                 ax1.cla()
                 ax2.cla()
-                draw_frame(ax1, ax2, viz_data, layout=layout)
+                draw_frame(ax1, ax2, viz_data, show_trajectory=show_traj)
 
                 # PNG
                 if need_png:
@@ -217,7 +223,7 @@ def run_single_simulation(
 
                 ax1.cla()
                 ax2.cla()
-                draw_frame(ax1, ax2, viz_data, layout=layout)
+                draw_frame(ax1, ax2, viz_data, show_trajectory=show_traj)
 
                 final_frame_path = os.path.join(
                     map_out_dir, f"frame_{step_num:04d}_final.png"
@@ -332,6 +338,7 @@ def compute_cbf_violation_rates(logger: SimLogger, verbose: bool = True) -> dict
             conn_violation_rate  (float): connectivity violation rate
             total_steps          (int):   number of recorded steps used
     """
+    eps = 1e-6
     N = logger._num_agents
     histories = logger.cbf_history
 
@@ -349,11 +356,12 @@ def compute_cbf_violation_rates(logger: SimLogger, verbose: bool = True) -> dict
     conn_violated  = 0
 
     for t in range(T):
-        if any(histories[j][t]["obs_avoid"]   < 0 for j in range(N)):
+        # Ignore numerical errors
+        if any(histories[j][t]["obs_avoid"]   < -eps for j in range(N)):
             obs_violated   += 1
-        if any(histories[j][t]["agent_avoid"] < 0 for j in range(N)):
+        if any(histories[j][t]["agent_avoid"] < -eps for j in range(N)):
             avoid_violated += 1
-        if any(histories[j][t]["agent_conn"]  < 0 for j in range(N)):
+        if any(histories[j][t]["agent_conn"]  < -eps for j in range(N)):
             conn_violated  += 1
 
     obs_rate   = obs_violated   / T
@@ -385,28 +393,26 @@ def run_validation(
     gif_fps: int = 30,
 ):
     os.makedirs(root_out_dir, exist_ok=True)
-    # i_shape 
+    # i_shape
     for idx in i_shape_indices:
         run_single_simulation(
             cfg=cfg,
             episode_index=idx,
             map_tag="i_shape",
             steps=steps,
-            layout="square",
             root_out_dir=root_out_dir,
             frame_interval=frame_interval,
             gif_interval=gif_interval,
             gif_fps=gif_fps,
         )
 
-    # square 
+    # square
     for idx in square_indices:
         run_single_simulation(
             cfg=cfg,
             episode_index=idx,
             map_tag="square",
             steps=steps,
-            layout="square",
             root_out_dir=root_out_dir,
             frame_interval=frame_interval,
             gif_interval=gif_interval,
@@ -418,26 +424,16 @@ if __name__ == '__main__':
     with open("config/config.yaml", 'r') as f:
         config = yaml.safe_load(f)
 
-    torch.manual_seed(config['env']['seed'])
-    np.random.seed(config['env']['seed'])
-
-    i_shape_indices = [0, 9] 
-    # square_indices  = [2, 13, 15, 18, 28]
-
-    # i_shape_indices = [30, 31, 32, 35, 43]
-    # square_indices  = [27, 29, 40, 42, 46]
-
-    #i_shape_indices = [165, 166, 167, 168, 169, 170, 171, 172, 173, 174]
-    #i_shape_indices = [165]
+    i_shape_indices = [11] 
     square_indices  = []
 
     run_validation(
         cfg=config,
         i_shape_indices=i_shape_indices,
         square_indices=square_indices,
-        steps=500,
+        steps=5000,
         frame_interval=50,
-        root_out_dir="results/default",
-        gif_interval=100,    
-        gif_fps=30,     
+        root_out_dir="results/repro_test",
+        gif_interval=5,
+        gif_fps=30,
     )

@@ -94,7 +94,7 @@ class SimLogger:
             nom  = np.asarray(self.nominal_inputs_history[i], dtype=float) # (T, 2)
             safe = np.asarray(self.safe_inputs_history[i], dtype=float)    # (T, 2)
             cbf_arr = np.asarray(
-                [[d["obs_avoid"], d["agent_conn"]] for d in self.cbf_history[i]],
+                [[d["obs_avoid"], d["agent_avoid"] ,d["agent_conn"]] for d in self.cbf_history[i]],
                 dtype=float,
             )  # (T, 2)
 
@@ -109,7 +109,7 @@ class SimLogger:
 
             # step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_conn
             data = np.column_stack([steps_arr, time_arr, traj, nom, safe, cbf_arr])
-            header = "step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_conn"
+            header = "step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_avoid, agent_conn"
 
             csv_path = os.path.join(out_dir, f"agent_{i}_log.csv")
             np.savetxt(csv_path, data, delimiter=",", header=header, comments="")

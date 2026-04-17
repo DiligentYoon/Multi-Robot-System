@@ -38,6 +38,49 @@ GT_NORM = BELIEF_NORM
 
 AGENT_COLORS = ['#E6194B', '#4363D8', '#3CB44B', '#F58231', "#9D24C2", '#469990'] # Red, Blue, Green, Orange, Purple, Teal
 
+def make_figure(map_shape: tuple):
+    """Create a figure with two axes laid out according to the map's aspect ratio.
+
+    For landscape maps (W >= H), panels are stacked vertically (2 rows, 1 col).
+    For portrait maps  (W <  H), panels are placed side by side (1 row, 2 cols).
+
+    The short axis of each panel is fixed at BASE inches; the long axis is scaled
+    proportionally and then clamped to prevent excessively large figures.
+
+    Args:
+        map_shape: (H, W) in cells, as returned by map.gt.shape.
+
+    Returns:
+        fig, ax_gt, ax_belief
+    """
+    H, W = map_shape
+    aspect = W / H  # > 1 → landscape, < 1 → portrait, = 1 → square
+
+    BASE = 5.0        # short-axis target size per panel (inches)
+    TITLE_PAD = 1.2   # extra space for axis titles
+    # Maps wider than this ratio use a 2-row (vertical) layout so the figure
+    # does not become excessively wide.  Square/portrait maps use 2-col.
+    LANDSCAPE_THRESH = 1.5
+
+    if aspect > LANDSCAPE_THRESH:
+        # Wide landscape (e.g. i_shape W/H≈3) → stack vertically (2 rows, 1 col)
+        panel_w = BASE * aspect
+        panel_h = BASE
+        fig_w = float(np.clip(panel_w, 4.0, 12.0))
+        fig_h = float(np.clip(2.0 * panel_h + TITLE_PAD, 8.0, 20.0))
+        fig, axs = plt.subplots(2, 1, figsize=(fig_w, fig_h), constrained_layout=True)
+    else:
+        # Square / portrait → side by side (1 row, 2 cols)
+        panel_h = BASE
+        panel_w = BASE * aspect
+        fig_w = float(np.clip(2.0 * panel_w + TITLE_PAD, 8.0, 20.0))
+        fig_h = float(np.clip(panel_h, 4.0, 12.0))
+        fig, axs = plt.subplots(1, 2, figsize=(fig_w, fig_h), constrained_layout=True)
+
+    ax_gt, ax_belief = axs[0], axs[1]
+    return fig, ax_gt, ax_belief
+
+
 def local_to_world(robot_pos: np.ndarray, local_points: np.ndarray, yaw: float) -> np.ndarray:
     """Transforms points from the robot's local frame to world coordinates."""
     if local_points.ndim == 1:
@@ -54,41 +97,18 @@ def local_to_world(robot_pos: np.ndarray, local_points: np.ndarray, yaw: float) 
 # ======================================================================================
 # Drawing Functions (Adapted for RL Environment)
 # ======================================================================================
-def draw_frame(ax_gt=None, ax_belief=None, viz_data: dict=None,
-               layout: str = "straight", figsize: tuple | None = None):
-    """
-    Draws a single frame of the simulation for the RL environment.
+def draw_frame(ax_gt, ax_belief, viz_data: dict,
+               show_trajectory: bool = True):
+    """Draw a single simulation frame onto the provided axes.
 
     Args:
         ax_gt: Matplotlib axis for the ground truth map.
         ax_belief: Matplotlib axis for the belief map.
-        viz_data: A dictionary containing all visualization data.
-                  Env-side fields (map_info, robot_locations, etc.) come from
-                  infos["viz"] populated by CBFEnv._get_viz_info().
+        viz_data: Dictionary of simulation state produced by CBFEnv._get_viz_info(),
+                  augmented with path history and control targets by main_driver.
+        show_trajectory: Whether to draw each agent's path history.
     """
 
-    # === (NEW) axes auto-create & layout control ===
-    created_axes = False
-    if (ax_gt is None) or (ax_belief is None):
-        if layout == "square":
-            nrows, ncols = 1, 2
-            default_figsize = (12, 6)   # 가로가 넓은 배치
-        else:
-            nrows, ncols = 2, 1
-            default_figsize = (8, 12)   # 세로가 긴 배치
-
-        fig, axs = plt.subplots(nrows, ncols, figsize=figsize or default_figsize)
-
-        # axs를 1차원 배열로 핸들
-        if isinstance(axs, np.ndarray):
-            axs_flat = axs.ravel()
-        else:
-            axs_flat = [axs]
-
-        ax_gt = axs_flat[0]
-        ax_belief = axs_flat[1]
-        created_axes = True
-        
     maps = viz_data["map_info"]
     ax_gt.clear(); ax_belief.clear()
     ax_gt.imshow(maps.gt, cmap=GT_CMAP, norm=GT_NORM, origin='upper')
@@ -194,11 +214,12 @@ def draw_frame(ax_gt=None, ax_belief=None, viz_data: dict=None,
                 ax.scatter(fx, fy, s=5, c=AGENT_COLORS[0], marker='.', zorder=4, alpha=0.4)
         
         # --- Path history ---
-        path = viz_data["paths"][i]
-        if len(path) > 1:
-            xs, ys = zip(*[world_to_img(wx, wy) for wx, wy in path])
-            for ax in (ax_gt, ax_belief):
-                ax.plot(xs, ys, '-', linewidth=2, color=color, alpha=0.8, zorder=3)
+        if show_trajectory:
+            path = viz_data["paths"][i]
+            if len(path) > 1:
+                xs, ys = zip(*[world_to_img(wx, wy) for wx, wy in path])
+                for ax in (ax_gt, ax_belief):
+                    ax.plot(xs, ys, '-', linewidth=2, color=color, alpha=0.8, zorder=3)
 
         # # --- Robot heading/velocity arrow ---
         # v_cmd = np.sqrt(env.robot_velocities[i, 0]**2 + env.robot_velocities[i, 1]**2)
@@ -310,15 +331,11 @@ def draw_frame(ax_gt=None, ax_belief=None, viz_data: dict=None,
     #             ax.add_patch(rect)
 
     # --- Final Touches ---
-    # 마지막에 제목/틱 설정
     for ax in (ax_gt, ax_belief):
         ax.set_xticks([]); ax.set_yticks([])
-        ax.set_aspect('equal')  # 정사각형 셀 표현
+        ax.set_aspect('equal')
     ax_gt.set_title('Ground Truth')
     ax_belief.set_title('Belief')
-
-    # 내부에서 축을 만들었으면 호출자도 재사용할 수 있게 반환
-    return ax_gt, ax_belief
 
 # ======================================================================================
 # Plotting Functions (Copied from heuristic, should be compatible)

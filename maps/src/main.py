@@ -5,6 +5,7 @@ Usage (from project root):
     python -m maps.src.main --type i_shape --num 50 --seed_start 10001
     python -m maps.src.main --type bottleneck
 """
+
 import os
 import sys
 import argparse
