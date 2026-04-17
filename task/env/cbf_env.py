@@ -200,10 +200,8 @@ class CBFEnv(Env):
         if isinstance(actions, torch.Tensor):
             actions = actions.detach().cpu().numpy()
         self.actions = actions.copy()
+        # Acceleration & Angular Velocity 생성 [min_range, max_range]
         self.preprocessed_actions = actions.copy()
-        # Acceleration & Angular Velocity 생성 [-1, 1] -> [min_range, max_range]
-        self.preprocessed_actions[:, 0] *= self.max_lin_acc
-        self.preprocessed_actions[:, 1] *= self.max_ang_vel
     
     def _apply_action(self, agent_id):
         # Acceleration을 바탕으로 속도 업데이트 (per-agent update)

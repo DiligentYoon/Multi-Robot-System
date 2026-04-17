@@ -246,11 +246,11 @@ class DifferentiableCBFLayer(nn.Module):
         # h[:, current_idx] = 1e3
 
         if device == torch.device('cpu'):
-            u_ref_ = (u_nominal.to(device=device, dtype=dtype) * self.action_scale.to(device=device, dtype=dtype)).cpu().contiguous()
+            u_ref_ = (u_nominal.to(device=device, dtype=dtype)).cpu().contiguous()
             G_ = G.cpu().contiguous()
             h_ = h.cpu().contiguous()
         else:
-            u_ref_ = (u_nominal.to(device=device, dtype=dtype) * self.action_scale.to(device=device, dtype=dtype))
+            u_ref_ = u_nominal.to(device=device, dtype=dtype)
             G_ = G
             h_ = h
         solution = self.layer(u_ref_, G_, h_, solver_args={'solve_method': 'ECOS'})[0]
@@ -262,7 +262,4 @@ class DifferentiableCBFLayer(nn.Module):
         # 솔루션에서 안전한 제어 입력 u_safe만 추출
         u_safe = solution.to(device=u_nominal.device, dtype=u_nominal.dtype)
         
-        # 제어 입력 스케일로 나온 Safe Control Input을 다시 정규화
-        u_safe_normalized = u_safe / self.action_scale.to(u_nominal.device)
-        
-        return u_safe_normalized, feasible
+        return u_safe, feasible

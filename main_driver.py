@@ -97,7 +97,7 @@ def run_single_simulation(
     try:
         for step_num in range(steps):
             # --- Nominal control ---
-            demo_nominal = get_nominal_control(
+            raw_actions = get_nominal_control(
                 p_target=info["nominal"]["p_targets"],
                 follower=info["nominal"]["follower"],
                 v_current=info["safety"]["v_current"],
@@ -106,7 +106,6 @@ def run_single_simulation(
                 v_max=env.max_lin_vel
             )
 
-            raw_actions = demo_nominal / np.array([env.max_lin_acc, env.max_ang_vel], dtype=np.float32)
             raw_actions_t = torch.tensor(raw_actions, device=device, dtype=torch.float32)
 
             # --- CBF Safety Filter ---
