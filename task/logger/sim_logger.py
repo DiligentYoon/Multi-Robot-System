@@ -56,14 +56,14 @@ class SimLogger:
                     obs_state_j[min_id, 0] ** 2 + obs_state_j[min_id, 1] ** 2
                 )
             else:
-                min_obs_dist_sq = 0.3 ** 2  # dummy
+                min_obs_dist_sq = 0.3 ** 2  # safe dummy
 
             p_agents_j = info["safety"]["p_agents"][j]
             if len(p_agents_j) > 0:
                 p_ag = np.asarray(p_agents_j)  # (K, 2)
                 min_agent_avoid = float((p_ag[:, 0] ** 2 + p_ag[:, 1] ** 2).min()) - self._d_safe ** 2
             else:
-                min_agent_avoid = 1.0  # no neighbors → safe dummy
+                min_agent_avoid = self._d_safe ** 2  # no neighbors → safe dummy
 
             p_c = info["safety"]["p_c_agent"][j].reshape(-1)
             min_agent_dist_sq = (

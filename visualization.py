@@ -147,12 +147,6 @@ def draw_frame(ax_gt, ax_belief, viz_data: dict,
             interpolation="nearest",
             zorder=2.5
         )
-        # 5) 컬러바(한 번만)
-        # fig = ax_belief.figure
-        # if not hasattr(fig, "_targets_heat_cb"):
-        #     cbar = fig.colorbar(im_bf, ax=[ax_gt, ax_belief], shrink=0.85, pad=0.02)
-        #     cbar.set_label("Targets probability (normalized)", rotation=90)
-        #     fig._targets_heat_cb = cbar
 
     def world_to_img(x, y):
         row, col = maps.world_to_grid(x, y)
@@ -171,14 +165,14 @@ def draw_frame(ax_gt, ax_belief, viz_data: dict,
         # --- Safety and Connectivity Circles ---
         cx, cy = world_to_img(robot[0], robot[1])
         # Get safety/connectivity distances from viz_data
-        radius_min_px = viz_data["cfg_d_max"] * 0.5 / maps.res_m
-        # radius_max_px = env.neighbor_radius * 0.5 / maps.res_m
+        radius_max_px = viz_data["cfg_d_max"] * 0.5 / maps.res_m
+        radius_min_px = viz_data["cfg_d_safe"] * 0.5 / maps.res_m
 
         for ax in (ax_gt, ax_belief):
+            max_circle = plt.Circle((cx, cy), radius_max_px, color=color, fill=False, linestyle='--', linewidth=1, alpha=0.7)
+            ax.add_patch(max_circle)
             min_circle = plt.Circle((cx, cy), radius_min_px, color=color, fill=False, linestyle='--', linewidth=1, alpha=0.7)
             ax.add_patch(min_circle)
-            # max_circle = plt.Circle((cx, cy), radius_max_px, color=color, fill=False, linestyle='--', linewidth=1, alpha=0.7)
-            # ax.add_patch(max_circle)
 
         # --- Robot Center ---
         for ax in (ax_gt, ax_belief):
@@ -259,76 +253,6 @@ def draw_frame(ax_gt, ax_belief, viz_data: dict,
             color = AGENT_COLORS[i % len(AGENT_COLORS)]
             for ax in (ax_gt, ax_belief):
                 ax.scatter(dest_img_x, dest_img_y, s=20, c=color, marker='*', zorder=10, edgecolors='black')
-
-    # --- Global Region ---
-    # regions = env.regions
-    # valid_regions = env.valid_regions
-    # for region in regions:
-    #     r0, r1, c0, c1 = map(int, region.bounds)
-    #     x0, y0 = maps.grid_to_world(r0, c0)  # (row_min, col_min)
-    #     x1, y1 = maps.grid_to_world(r1, c1)  # (row_max, col_max)
-    #     # 월드 -> 이미지 좌표
-    #     p0x, p0y = world_to_img(x0, y0)
-    #     p1x, p1y = world_to_img(x1, y1)
-    #     rx, ry = min(p0x, p1x), min(p0y, p1y)
-    #     rw, rh = abs(p1x - p0x), abs(p1y - p0y)
-    #     if not region in valid_regions:
-    #         edgecolor = 'k'
-    #     else:
-    #         edgecolor = 'y'
-    #         for ax in (ax_gt, ax_belief):
-    #             # 레이블 표시
-    #             ax.text(rx, ry - 6, "Valid Region", color=edgecolor, fontsize=6, weight='bold', zorder=6)
-
-    #     for ax in (ax_gt, ax_belief):
-    #         rect = plt.Rectangle(
-    #             (rx, ry), rw, rh,
-    #             fill=False,
-    #             edgecolor=edgecolor, 
-    #             linestyle='--',
-    #             linewidth=1.0,
-    #             zorder=7,
-    #             alpha=0.9
-    #         )
-    #         ax.add_patch(rect)
-    #         ax.add_patch(plt.Rectangle(
-    #             (rx, ry), rw, rh,
-    #             fill=True,
-    #             facecolor=edgecolor,
-    #             alpha=0.1,
-    #             linewidth=0,
-    #             zorder=6
-    #         ))
-    
-    # --- Local Region ---
-    # cluster_cmap = plt.get_cmap('tab20')
-    # num_colors = len(cluster_cmap.colors)
-    # cluster_infos = env.cluster_infos
-    # for label, value in cluster_infos.items():
-    #     regions = value["regions"]
-
-    #     for region in regions:
-    #         r0, r1, c0, c1 = map(int, region)
-    #         x0, y0 = maps.grid_to_world(r0, c0) 
-    #         x1, y1 = maps.grid_to_world(r1, c1)
-    #         p0x, p0y = world_to_img(x0, y0)
-    #         p1x, p1y = world_to_img(x1, y1)
-    #         rx, ry = min(p0x, p1x), min(p0y, p1y)
-    #         rw, rh = abs(p1x - p0x), abs(p1y - p0y)
-
-    #         color_index = label % num_colors
-    #         edgecolor = 'r'
-    #         for ax in (ax_gt, ax_belief):
-    #             rect = plt.Rectangle(
-    #                 (rx, ry), rw, rh,
-    #                 fill=False,
-    #                 edgecolor=edgecolor,    
-    #                 linestyle='-',
-    #                 linewidth=1.0,
-    #                 zorder=5,
-    #                 alpha=0.9
-    #             )
-    #             ax.add_patch(rect)
 
     # --- Final Touches ---
     for ax in (ax_gt, ax_belief):

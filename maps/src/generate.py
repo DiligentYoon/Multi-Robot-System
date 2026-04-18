@@ -1,9 +1,9 @@
 """Map generation CLI.
 
 Usage (from project root):
-    python -m maps.src.main --type all --num 50
-    python -m maps.src.main --type i_shape --num 50 --seed_start 10001
-    python -m maps.src.main --type bottleneck
+    python -m maps.src.generate --type all --num 50
+    python -m maps.src.generate --type i_shape --num 50 --seed_start 10001
+    python -m maps.src.generate --type bottleneck
 """
 
 import os

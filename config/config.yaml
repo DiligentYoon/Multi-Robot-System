@@ -26,7 +26,7 @@ env:
       frontier: 5
 
 visualization:
-  show_trajectory: true
+  show_trajectory: false
 
 model:
   safety:
@@ -39,8 +39,8 @@ model:
     w_max: 0
     gamma_c1: 1.0
     gamma_c2: 1.0
-    gamma_a1: 3.0
-    gamma_a2: 3.0
+    gamma_a1: 1.5
+    gamma_a2: 1.5
     gamma_conn1: 1.5
     gamma_conn2: 1.5
     w_slack: 5000

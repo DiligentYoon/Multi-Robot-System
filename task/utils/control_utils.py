@@ -6,8 +6,8 @@ def get_nominal_control(p_target: list[np.ndarray] | np.ndarray,
                         a_max: float,
                         w_max: float,
                         v_max: float,
-                        k_v: float = 1.0,
-                        k_w: float = 1.5) -> np.ndarray:
+                        k_v: float = 0.5,
+                        k_w: float = 1.0) -> np.ndarray:
 
         if isinstance(p_target, list):
             p_target = np.vstack(p_target) # (n, 2)

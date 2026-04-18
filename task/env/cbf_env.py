@@ -489,6 +489,7 @@ class CBFEnv(Env):
             "robot_locations":   self.robot_locations.copy(),
             "robot_angles":      self.robot_angles.copy(),
             "cfg_d_max":         self.cfg.d_max,
+            "cfg_d_safe":        self.cfg.d_safe,
             "cfg_fov":           self.cfg.fov,
             "cfg_sensor_range":  self.cfg.sensor_range,
             "obstacle_states":   self.obstacle_states.copy(),

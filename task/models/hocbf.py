@@ -243,7 +243,6 @@ class DifferentiableCBFLayer(nn.Module):
         G[:, current_idx, 4] = G_conn_delta.squeeze(-1)
         h[:, current_idx] = h_rhs_conn.squeeze(-1)
         h[:, current_idx][(closest_mask == 0).squeeze()] = 1e3
-        # h[:, current_idx] = 1e3
 
         if device == torch.device('cpu'):
             u_ref_ = (u_nominal.to(device=device, dtype=dtype)).cpu().contiguous()

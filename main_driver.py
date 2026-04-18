@@ -337,7 +337,7 @@ def compute_cbf_violation_rates(logger: SimLogger, verbose: bool = True) -> dict
             conn_violation_rate  (float): connectivity violation rate
             total_steps          (int):   number of recorded steps used
     """
-    eps = 1e-6
+    eps = 1e-3
     N = logger._num_agents
     histories = logger.cbf_history
 
@@ -423,7 +423,7 @@ if __name__ == '__main__':
     with open("config/config.yaml", 'r') as f:
         config = yaml.safe_load(f)
 
-    i_shape_indices = [11] 
+    i_shape_indices = [11, 33, 68, 84] 
     square_indices  = []
 
     run_validation(
