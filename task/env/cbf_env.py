@@ -180,15 +180,25 @@ class CBFEnv(Env):
             initial_positions = np.array(self.cfg.init_positions, dtype=np.float32)
         else:
             # 2) default value
-            initial_positions = np.array([
-                [0.2, 0.3], [0.2, 0.5], [0.2, 0.7],
-                [0.4, 0.4], [0.4, 0.6],
-            ], dtype=np.float32)
-            # initial_positions = np.array([
-            #     [0.2, 0.3], [0.2, 0.5], [0.2, 0.7],
-            #     [0.4, 0.3], [0.4, 0.5], [0.4, 0.7],
-            #     [0.6, 0.3], [0.6, 0.5], [0.6, 0.7],
-            # ], dtype=np.float32)
+            if self.num_agent == 3:
+                initial_positions = np.array([
+                    [0.2, 0.3], [0.2, 0.5], [0.2, 0.7],
+                ], dtype=np.float32)
+                
+            elif self.num_agent == 5:
+                initial_positions = np.array([
+                    [0.2, 0.3], [0.2, 0.5], [0.2, 0.7],
+                    [0.4, 0.4], [0.4, 0.6],
+                ], dtype=np.float32)
+
+            elif self.num_agent == 7:
+                initial_positions = np.array([
+                    [0.2, 0.3], [0.2, 0.5], [0.2, 0.7],
+                    [0.4, 0.3], [0.4, 0.5], [0.4, 0.7],
+                    [0.6, 0.5],
+                ], dtype=np.float32)
+            else:
+                raise ValueError("Unvalid agent numbers")
             
         # Optional sanity warning if out of effective map area (before padding)
         for pos in initial_positions:
