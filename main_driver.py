@@ -385,6 +385,7 @@ def run_validation(
     cfg: dict,
     i_shape_indices: List[int],
     square_indices: List[int],
+    custom_indices: List[int],
     steps: int = 5000,
     frame_interval: int = 100,
     root_out_dir: str = "results/default",
@@ -418,21 +419,36 @@ def run_validation(
             gif_fps=gif_fps,
         )
 
+    # custom
+    for idx in custom_indices:
+        run_single_simulation(
+            cfg=cfg,
+            episode_index=idx,
+            map_tag="custom",
+            steps=steps,
+            root_out_dir=root_out_dir,
+            frame_interval=frame_interval,
+            gif_interval=gif_interval,
+            gif_fps=gif_fps
+        )
+
 
 if __name__ == '__main__':
     with open("config/config.yaml", 'r') as f:
         config = yaml.safe_load(f)
 
-    i_shape_indices = [11, 33, 68, 84] 
+    i_shape_indices = [] 
     square_indices  = []
+    custom_indices = [3, 4]
 
     run_validation(
         cfg=config,
         i_shape_indices=i_shape_indices,
         square_indices=square_indices,
-        steps=5000,
+        custom_indices=custom_indices,
+        steps=4000,
         frame_interval=50,
-        root_out_dir="results/repro_test",
+        root_out_dir="results/quantitative",
         gif_interval=5,
         gif_fps=30,
     )

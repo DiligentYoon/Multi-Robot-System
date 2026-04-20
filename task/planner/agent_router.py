@@ -171,10 +171,10 @@ class AgentRouter:
             # A* Graph Search for Optimal Path
             if follower:
                 look_ahead_distance = 0.05
-                inflation_radius_cells = 10
+                inflation_radius_cells = 6
             else:
                 look_ahead_distance = 0.1
-                inflation_radius_cells = 7
+                inflation_radius_cells = 6
             path_cells = astar_search(map_info,
                                       start_pos=np.flip(start_cell), # (row, col)
                                       end_pos=np.flip(end_cell),     # (row, col)
