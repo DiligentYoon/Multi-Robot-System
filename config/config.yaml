@@ -4,7 +4,7 @@ env:
   physics_dt: 0.1
   device: "cuda"
 
-  num_agent: 5
+  num_agent: 7
   graph_mode: "mst"   # "mst" | "nn_tree"
   max_velocity: 0.3
   max_yaw_rate: 1.0 # radians 1.5
