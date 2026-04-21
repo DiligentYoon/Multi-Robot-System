@@ -437,7 +437,7 @@ if __name__ == '__main__':
     with open("config/config.yaml", 'r') as f:
         config = yaml.safe_load(f)
 
-    i_shape_indices = [11, 68, 84, 89] 
+    i_shape_indices = [68, 84, 89] 
     square_indices  = [5, 49, 70]
     custom_indices = [1,2,3]
 
