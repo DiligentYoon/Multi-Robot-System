@@ -446,9 +446,9 @@ if __name__ == '__main__':
         i_shape_indices=i_shape_indices,
         square_indices=square_indices,
         custom_indices=custom_indices,
-        steps=4000,
+        steps=10000,
         frame_interval=50,
-        root_out_dir=f"results/quantitative/agent_{config["num_agent"]}",
+        root_out_dir=f"results/quantitative/agent_{config['env']['num_agent']}",
         gif_interval=5,
         gif_fps=30,
     )
