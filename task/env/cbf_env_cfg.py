@@ -13,7 +13,7 @@ class CBFEnvCfg(EnvCfg):
         # Episode Information
         self.decimation = 1
         self.max_episode_steps = 1000000
-        self.centralized_decimation = 30
+        self.centralized_decimation = 50
 
         # Controller Cfg
         self.neighbor_sensing_distance = 0.5
