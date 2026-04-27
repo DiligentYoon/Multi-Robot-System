@@ -437,10 +437,10 @@ if __name__ == '__main__':
     with open("config/config.yaml", 'r') as f:
         config = yaml.safe_load(f)
 
-    i_shape_indices = [3, 11, 15, 18, 44, 68, 84, 89] 
-    square_indices  = [34, 49, 69]
+    i_shape_indices = [] 
+    square_indices  = []
     custom_indices = [1, 2, 3]
-    for i in [3, 5, 7]:
+    for i in [5]:
 
         config["env"]["num_agent"] = i
 
@@ -451,7 +451,7 @@ if __name__ == '__main__':
             custom_indices=custom_indices,
             steps=10000,
             frame_interval=50,
-            root_out_dir=f"results/quantitative/ablation_2/agent_{config['env']['num_agent']}",
+            root_out_dir=f"results/quantitative/agent_{config['env']['num_agent']}",
             gif_interval=5,
             gif_fps=30,
         )

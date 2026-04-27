@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from typing import List
 from matplotlib.colors import PowerNorm
+import matplotlib.patheffects as pe
 # Map Legend Constants (from config)
 FREE = 0
 UNKNOWN = 1
@@ -161,9 +162,27 @@ def draw_frame(ax_gt, ax_belief, viz_data: dict,
         robot = robot_locations[i]
         robot_yaw = robot_angles[i]
         color = AGENT_COLORS[i % len(AGENT_COLORS)]
+        cx, cy = world_to_img(robot[0], robot[1])
+
+        # --- Robot number ---
+        label_offset_px = 7
+        label = str(i)  # or str(i + 1)
+
+        for ax in (ax_gt, ax_belief):
+            ax.text(
+                cx, cy - label_offset_px, label,
+                color=color,
+                fontsize=8,
+                fontweight="bold",
+                ha="center",
+                va="bottom",
+                zorder=10,
+                path_effects=[
+                    pe.withStroke(linewidth=2.5, foreground="black")
+                ],
+            )  
 
         # --- Safety and Connectivity Circles ---
-        cx, cy = world_to_img(robot[0], robot[1])
         # Get safety/connectivity distances from viz_data
         radius_max_px = viz_data["cfg_d_max"] * 0.5 / maps.res_m
         radius_min_px = viz_data["cfg_d_safe"] * 0.5 / maps.res_m
