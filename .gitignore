@@ -3,12 +3,17 @@
 **/gifs/
 **/__pycache__/
 **/*.pyc
-**/results/
+results/*
+!results/demo/
+results/demo/*
+!results/demo/demo_video.mp4
 **/*.png
 **/.claude
 
+
 !maps/01_case_study/**
 !maps/02_quantitative_study/**
+!results/demo/demo_video.mp4
 
 __pycache__/
 
