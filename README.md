@@ -4,9 +4,7 @@ Multiple robots explore an unknown environment using frontier-based planning, wi
 
 ## Demo
 
-<video src="https://raw.githubusercontent.com/DiligentYoon/Multi-Robot-System/main/results/demo/demo_video.mp4" width="100%" controls>
-  <p>Your browser does not support the video tag. See <code>results/demo/demo_video.mp4</code>.</p>
-</video>
+<img src="results/demo/demo_video.gif" width="100%">
 
 ---
 

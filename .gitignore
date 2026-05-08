@@ -6,14 +6,14 @@
 results/*
 !results/demo/
 results/demo/*
-!results/demo/demo_video.mp4
+!results/demo/demo_video.gif
 **/*.png
 **/.claude
 
 
 !maps/01_case_study/**
 !maps/02_quantitative_study/**
-!results/demo/demo_video.mp4
+!results/demo/demo_video.gif
 
 __pycache__/
 
