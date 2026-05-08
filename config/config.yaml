@@ -1,0 +1,46 @@
+# Environment Settings
+env:
+  seed: 42
+  physics_dt: 0.1
+  device: "cuda"
+
+  num_agent: 7
+  graph_mode: "mst"   # "mst" | "nn_tree"
+  max_velocity: 0.3
+  max_yaw_rate: 1.0 # radians 1.5
+  max_acceleration: 0.1 # 0.1
+
+  fov: 120 # degrees
+  sensor_range: 0.3 # meters
+  num_rays: 61
+  map:
+    map_filepath: maps/custom/map_004.png
+    resolution: 0.01 
+
+    map_representation:
+      free: 0
+      unknown: 1
+      occupied: 2
+      goal: 3
+      start: 4
+      frontier: 5
+
+visualization:
+  show_trajectory: false
+
+model:
+  safety:
+    max_obs: 0
+    max_agents: 0
+    d_obs: 0
+    d_max: 0
+    d_safe: 0
+    a_max: 0
+    w_max: 0
+    gamma_c1: 1.0
+    gamma_c2: 1.0
+    gamma_a1: 1.5
+    gamma_a2: 1.5
+    gamma_conn1: 1.5
+    gamma_conn2: 1.5
+    w_slack: 5000

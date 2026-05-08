@@ -1,0 +1,17 @@
+*.gif
+
+**/gifs/
+**/__pycache__/
+**/*.pyc
+**/results/
+**/*.png
+**/.claude
+
+!maps/01_case_study/**
+!maps/02_quantitative_study/**
+
+__pycache__/
+
+CLAUDE.md
+plan.md
+research.md
