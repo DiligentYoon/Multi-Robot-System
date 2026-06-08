@@ -1,6 +1,6 @@
-# A Hierarchical Framework for Cooperative Navigation in Obstacle-Dense Corridors Using High-Order Control Barrier Functions
+# A Hierarchical Connectivity-Preserving HOCBF Framework for Safety-Critical Cooperative Navigation in Obstacle-Dense Corridors
 
-Multiple robots explore an unknown environment using frontier-based planning, with a High-Order CBF safety filter that enforces collision avoidance and network connectivity in real time.
+Multiple robots explore and navigate an unknown environment using boundary-based team-level planning, with a High Order Control Barrier Functions (HOCBFs) safety filter that enforces collision avoidance and connectivity maintenance in real time.
 
 ## Demo
 
@@ -62,8 +62,8 @@ python analysis/plot_timeseries.py        # per-agent CBF & control time-series
 |-----------|-----------------|
 | `env.num_agent` | Number of robots |
 | `env.map.map_filepath` | Map PNG to load |
-| `env.graph_mode` | Connectivity graph: `"mst"` (default) or `"nn_tree"` (ablation) |
-| `env.assign_mode` | Frontier assignment: `"target_frontier"` or `"target_unknown"` |
+| `env.graph_mode` | Connectivity graph: `"mst"` (default) or `"nn_tree"` |
+| `env.assign_mode` | Frontier assignment: `"target_unknown"` or `"target_frontier"` (ablation) |
 | `model.safety.d_obs` | Obstacle safety margin (m) |
 | `model.safety.d_safe` | Inter-agent safety margin (m) |
 | `model.safety.d_max` | Max allowed connectivity edge length (m) |
@@ -97,9 +97,9 @@ Multi_Robot_System/
 ├── visualization.py
 ├── task/
 │   ├── env/cbf_env.py          # simulation environment
-│   ├── models/hocbf.py         # HO-CBF safety layer (QP via CvxpyLayers)
+│   ├── models/hocbf.py         # HOCBF safety layer (QP via CvxpyLayers for parallel solving)
 │   ├── graph/graph.py          # connectivity graph (MST / NN-tree)
-│   ├── planner/                # frontier detection + A* routing
+│   ├── planner/                # boundary detection + A* routing
 │   ├── logger/sim_logger.py
 │   └── utils/
 ├── maps/                       # map datasets + generation scripts
