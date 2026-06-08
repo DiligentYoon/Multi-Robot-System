@@ -16,8 +16,8 @@ class CBFEnvCfg(EnvCfg):
         self.centralized_decimation = 50
 
         # Controller Cfg
-        self.neighbor_sensing_distance = 0.7
-        self.d_max = 0.7 # Connectivity distance
+        self.neighbor_sensing_distance = 0.5
+        self.d_max = 0.5 # Connectivity distance
         self.d_safe = 0.05 # Inter-agent safety distance
         self.d_obs = 0.05 # Obstacle safety radius
         self.max_obs = self.num_rays

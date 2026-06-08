@@ -437,9 +437,9 @@ if __name__ == '__main__':
     with open("config/config.yaml", 'r') as f:
         config = yaml.safe_load(f)
 
-    i_shape_indices = [] 
-    square_indices  = []
-    custom_indices = [3]
+    i_shape_indices = [3, 15, 44, 68, 84, 89] 
+    square_indices  = [34, 49, 69]
+    custom_indices = [1, 2, 3]
     for i in [5]:
 
         config["env"]["num_agent"] = i
