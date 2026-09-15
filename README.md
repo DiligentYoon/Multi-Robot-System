@@ -1,4 +1,4 @@
-# A Hierarchical Connectivity-Preserving HOCBF Framework for Safety-Critical Cooperative Navigation in Obstacle-Dense Corridors
+# Hierarchical Safety-Aware Coordination and Control for Connectivity-Preserving Cooperative Multi-Robot Navigation
 
 Multiple robots explore and navigate an unknown environment using boundary-based team-level planning, with a High Order Control Barrier Functions (HOCBFs)-based safety filter that enforces collision avoidance and connectivity maintenance in real time.
 
