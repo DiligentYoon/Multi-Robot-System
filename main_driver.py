@@ -256,6 +256,8 @@ def run_single_simulation(
         try:
             with open(summary_path, "w") as f:
                 f.write(f"map_tag: {map_tag}\n")
+                f.write(f"seed: {seed}\n")
+                f.write(f"num_agent: {env.num_agent}\n")
                 f.write(f"episode_index: {episode_index}\n")
                 f.write(f"stopped: {termination_info['stopped']}\n")
                 f.write(f"stop_step: {termination_info['stop_step']}\n")
@@ -273,6 +275,7 @@ def run_single_simulation(
                     f.write("cbf_violation_rates: NA (compute failed)\n")
                 else:
                     f.write(f"cbf_total_steps: {violation_info['total_steps']}\n")
+                    f.write(f"cbf_feasible_rate: {violation_info['feasible_rate']:.6f}\n")
                     f.write(f"cbf_obs_violation_rate: {violation_info['obs_violation_rate']:.6f}\n")
                     f.write(f"cbf_avoid_violation_rate: {violation_info['avoid_violation_rate']:.6f}\n")
                     f.write(f"cbf_conn_violation_rate: {violation_info['conn_violation_rate']:.6f}\n")

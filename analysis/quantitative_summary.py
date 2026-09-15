@@ -1,32 +1,52 @@
-"""Quantitative summary analysis for multi-robot simulation results.
+"""Quantitative summary: two-stage aggregation by agent count and seed.
 
-Reads all termination_summary.txt files under a given run directory and
-produces aggregate statistics (mean, std, min, max) grouped by map_tag
-and overall.
+Stage 1: average episodes within each (agent[, map], seed) group.
+Stage 2: mean / std across seeds.
 
 Usage:
-    python -m analysis.quantitative_summary --run_dir results/quantitative/agent_3
+    python -m analysis.quantitative_summary --root results/quantitative
+    python -m analysis.quantitative_summary --root results/quantitative --per_map
 """
 
 import argparse
 import os
 import re
-from collections import defaultdict
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-
 # ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
 
-def parse_summary(path: str) -> Optional[dict]:
-    """Parse a termination_summary.txt file into a dict.
+DIR_RE   = re.compile(r"^(?P<map_tag>.+)_seed_(?P<seed>\d+)_(?P<idx>\d+)$")
+AGENT_RE = re.compile(r"agent_(?P<n>\d+)")
 
-    Returns None if the file cannot be read or is malformed.
-    """
+NUMERIC_COLS = [
+    "free_coverage",
+    "cbf_feasible_rate",
+    "cbf_obs_violation_rate",
+    "cbf_avoid_violation_rate",
+    "cbf_conn_violation_rate",
+    "stop_step",
+    "cbf_total_steps",
+]
+
+RATE_COLS = ["success_rate", "obstacle_collision_rate",
+             "robot_collision_rate", "frozen_rate", "timeout_rate"]
+
+REASON_MAP = {
+    "goal":               "success_rate",
+    "obstacle_collision": "obstacle_collision_rate",
+    "robot_collision":    "robot_collision_rate",
+    "frozen":             "frozen_rate",
+    "timeout":            "timeout_rate",
+}
+
+
+def parse_summary(path: str) -> Optional[dict]:
+    """Parse one termination_summary.txt into a dict, or None if unreadable."""
     data = {}
     try:
         with open(path, "r") as f:
@@ -39,163 +59,222 @@ def parse_summary(path: str) -> Optional[dict]:
     except OSError:
         return None
 
-    # Type coercions
     def _float(k):
-        v = data.get(k, "NA")
         try:
-            return float(v)
+            return float(data.get(k, "NA"))
         except (ValueError, TypeError):
             return float("nan")
 
     def _int(k):
-        v = data.get(k, "None")
         try:
-            return int(v)
+            return int(data.get(k, "None"))
         except (ValueError, TypeError):
             return None
 
-    return {
-        "map_tag":                 data.get("map_tag", "unknown"),
-        "episode_index":           _int("episode_index"),
-        "stopped":                 data.get("stopped", "False").lower() == "true",
-        "stop_step":               _int("stop_step"),
-        "stop_reason":             data.get("stop_reason", "None"),
-        "free_coverage":           _float("free_coverage"),
-        "covered_free_cells":      _int("covered_free_cells"),
-        "total_gt_free_cells":     _int("total_gt_free_cells"),
-        "belief_free_cells":       _int("belief_free_cells"),
-        "cbf_total_steps":         _int("cbf_total_steps"),
-        "cbf_obs_violation_rate":  _float("cbf_obs_violation_rate"),
-        "cbf_avoid_violation_rate":_float("cbf_avoid_violation_rate"),
-        "cbf_conn_violation_rate": _float("cbf_conn_violation_rate"),
+    rec = {
+        "map_tag":       data.get("map_tag", "unknown"),
+        "seed":          _int("seed"),
+        "num_agent":     _int("num_agent"),
+        "episode_index": _int("episode_index"),
+        "stopped":       data.get("stopped", "False").lower() == "true",
+        "stop_step":     _int("stop_step"),
+        "stop_reason":   data.get("stop_reason", "None"),
     }
+    for c in NUMERIC_COLS:
+        if c not in rec:
+            rec[c] = _float(c)
+    rec["covered_free_cells"]  = _int("covered_free_cells")
+    rec["total_gt_free_cells"] = _int("total_gt_free_cells")
+    return rec
 
 
-def collect_summaries(run_dir: str) -> pd.DataFrame:
-    """Walk run_dir, parse every termination_summary.txt, return DataFrame."""
+def collect(root: str) -> pd.DataFrame:
+    """Walk root/agent_*/<episode_dir>/termination_summary.txt and collect all."""
     records = []
-    for entry in sorted(os.listdir(run_dir)):
-        ep_dir = os.path.join(run_dir, entry)
-        if not os.path.isdir(ep_dir):
+    for agent_dir in sorted(os.listdir(root)):
+        agent_path = os.path.join(root, agent_dir)
+        if not os.path.isdir(agent_path):
             continue
-        summary_path = os.path.join(ep_dir, "termination_summary.txt")
-        if not os.path.isfile(summary_path):
-            continue
-        rec = parse_summary(summary_path)
-        if rec is not None:
-            rec["episode_dir"] = entry
+        m_agent = AGENT_RE.search(agent_dir)
+        agent_fallback = int(m_agent.group("n")) if m_agent else None
+
+        for ep_dir in sorted(os.listdir(agent_path)):
+            ep_path = os.path.join(agent_path, ep_dir)
+            summary = os.path.join(ep_path, "termination_summary.txt")
+            if not os.path.isfile(summary):
+                continue
+            rec = parse_summary(summary)
+            if rec is None:
+                continue
+
+            # Fall back to directory names when the fields are absent
+            # from the summary file (older runs).
+            if rec["num_agent"] is None:
+                rec["num_agent"] = agent_fallback
+            m_dir = DIR_RE.match(ep_dir)
+            if rec["seed"] is None and m_dir:
+                rec["seed"] = int(m_dir.group("seed"))
+            if rec["map_tag"] in ("unknown", "") and m_dir:
+                rec["map_tag"] = m_dir.group("map_tag")
+
+            rec["episode_dir"] = ep_dir
             records.append(rec)
-    return pd.DataFrame(records)
+
+    df = pd.DataFrame(records)
+    if df.empty:
+        return df
+
+    # Expand stop_reason into one-hot rate columns
+    for col in RATE_COLS:
+        df[col] = 0.0
+    for reason, col in REASON_MAP.items():
+        df.loc[df["stop_reason"] == reason, col] = 1.0
+    return df
 
 
 # ---------------------------------------------------------------------------
-# Statistics
+# Two-stage aggregation
 # ---------------------------------------------------------------------------
 
-NUMERIC_COLS = [
-    "free_coverage",
-    "cbf_obs_violation_rate",
-    "cbf_avoid_violation_rate",
-    "cbf_conn_violation_rate",
-    "stop_step",
-    "cbf_total_steps",
-]
+METRICS = NUMERIC_COLS + RATE_COLS
 
 
-def compute_stats(df: pd.DataFrame) -> pd.DataFrame:
-    """Return mean/std/min/max for NUMERIC_COLS across all rows in df."""
+def stage1_per_seed(df: pd.DataFrame, group_keys) -> pd.DataFrame:
+    """Average episodes within each (agent[, map], seed) group."""
+    agg = {m: "mean" for m in METRICS if m in df.columns}
+    out = df.groupby(group_keys, dropna=False).agg(agg).reset_index()
+    out["n_episodes"] = (df.groupby(group_keys, dropna=False)
+                           .size().reset_index(drop=True))
+    return out
+
+
+def stage2_across_seeds(per_seed: pd.DataFrame, group_keys) -> pd.DataFrame:
+    """Mean / std across seeds, plus seed and episode counts."""
     rows = []
-    for col in NUMERIC_COLS:
-        vals = pd.to_numeric(df[col], errors="coerce").dropna()
-        rows.append({
-            "metric": col,
-            "count":  len(vals),
-            "mean":   vals.mean() if len(vals) else float("nan"),
-            "std":    vals.std(ddof=1) if len(vals) > 1 else float("nan"),
-            "min":    vals.min() if len(vals) else float("nan"),
-            "max":    vals.max() if len(vals) else float("nan"),
-        })
+    for keys, grp in per_seed.groupby(group_keys, dropna=False):
+        keys = keys if isinstance(keys, tuple) else (keys,)
+        base = dict(zip(group_keys, keys))
+        base["n_seeds"]    = len(grp)
+        base["n_episodes"] = int(grp["n_episodes"].sum())
+        for m in METRICS:
+            if m not in grp.columns:
+                continue
+            v = pd.to_numeric(grp[m], errors="coerce").dropna()
+            base[f"{m}_mean"] = v.mean() if len(v) else np.nan
+            base[f"{m}_std"]  = v.std(ddof=1) if len(v) > 1 else np.nan
+        rows.append(base)
     return pd.DataFrame(rows)
 
 
-def stop_reason_counts(df: pd.DataFrame) -> pd.Series:
-    return df["stop_reason"].value_counts(dropna=False)
+def format_pm(df: pd.DataFrame, group_keys, metrics=None) -> pd.DataFrame:
+    """Render metrics as 'mean ± std' strings."""
+    metrics = metrics or METRICS
+    out = df[group_keys + ["n_seeds", "n_episodes"]].copy()
+    for m in metrics:
+        mc, sc = f"{m}_mean", f"{m}_std"
+        if mc not in df.columns:
+            continue
+        out[m] = [
+            "NA" if pd.isna(mu) else
+            (f"{mu:.3f}" if pd.isna(sd) else f"{mu:.3f} ± {sd:.3f}")
+            for mu, sd in zip(df[mc], df[sc])
+        ]
+    return out
 
 
 # ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
 
-def print_section(title: str) -> None:
-    print(f"\n{'='*60}")
-    print(f"  {title}")
-    print(f"{'='*60}")
+def section(title):
+    print(f"\n{'=' * 70}\n  {title}\n{'=' * 70}")
 
 
-def report(df: pd.DataFrame, out_dir: str) -> None:
-    out_dir = os.path.join(out_dir, "summary")
+def report(df: pd.DataFrame, out_dir: str, per_map: bool):
     os.makedirs(out_dir, exist_ok=True)
 
-    # ---- Overall ----
-    print_section("OVERALL STATISTICS")
-    overall = compute_stats(df)
-    print(overall.to_string(index=False))
-    overall.to_csv(os.path.join(out_dir, "stats_overall.csv"), index=False)
+    # ---- Primary: by agent count, maps pooled ----
+    per_seed = stage1_per_seed(df, ["num_agent", "seed"])
+    final    = stage2_across_seeds(per_seed, ["num_agent"])
 
-    print("\n-- Stop reason distribution (overall) --")
-    rc = stop_reason_counts(df)
-    print(rc.to_string())
+    section("PER-SEED AGGREGATE (Stage 1)")
+    print(per_seed.round(4).to_string(index=False))
+    per_seed.to_csv(os.path.join(out_dir, "per_seed.csv"), index=False)
 
-    # ---- Per map_tag ----
-    for tag, grp in df.groupby("map_tag"):
-        print_section(f"MAP TAG: {tag}  (n={len(grp)})")
-        stats = compute_stats(grp)
-        print(stats.to_string(index=False))
-        stats.to_csv(os.path.join(out_dir, f"stats_{tag}.csv"), index=False)
+    section("BY AGENT COUNT - mean +/- std over seeds (Stage 2)")
+    print(format_pm(final, ["num_agent"]).to_string(index=False))
+    final.to_csv(os.path.join(out_dir, "by_agent.csv"), index=False)
 
-        print(f"\n-- Stop reason distribution ({tag}) --")
-        print(stop_reason_counts(grp).to_string())
+    if (final["n_seeds"] < 3).any():
+        print("\n[warn] Some groups have fewer than 3 seeds. "
+              "Treat std as indicative only (insufficient degrees of freedom).")
 
-    # ---- Per-episode table ----
-    cols_to_show = [
-        "episode_dir", "map_tag", "stop_reason", "stop_step",
-        "free_coverage",
-        "cbf_obs_violation_rate",
-        "cbf_avoid_violation_rate",
-        "cbf_conn_violation_rate",
-    ]
-    per_ep = df[[c for c in cols_to_show if c in df.columns]]
-    print_section("PER-EPISODE TABLE")
-    print(per_ep.to_string(index=False))
-    per_ep.to_csv(os.path.join(out_dir, "per_episode.csv"), index=False)
+    # ---- Secondary: agent x map, for trend inspection ----
+    if per_map:
+        per_seed_map = stage1_per_seed(df, ["num_agent", "map_tag", "seed"])
+        final_map    = stage2_across_seeds(per_seed_map, ["num_agent", "map_tag"])
+        section("BY AGENT x MAP (secondary - trend inspection)")
+        print(format_pm(final_map, ["num_agent", "map_tag"]).to_string(index=False))
+        final_map.to_csv(os.path.join(out_dir, "by_agent_map.csv"), index=False)
 
+    # ---- Termination reason distribution ----
+    section("STOP REASON DISTRIBUTION")
+    ct = pd.crosstab([df["num_agent"], df["seed"]], df["stop_reason"])
+    print(ct.to_string())
+    ct.to_csv(os.path.join(out_dir, "stop_reason_counts.csv"))
+
+    # ---- stop_step restricted to successful episodes ----
+    succ = df[df["stop_reason"] == "goal"]
+    if not succ.empty:
+        section("stop_step - successful (goal) episodes only")
+        ps = stage1_per_seed(succ, ["num_agent", "seed"])
+        fs = stage2_across_seeds(ps, ["num_agent"])
+        print(format_pm(fs, ["num_agent"], ["stop_step"]).to_string(index=False))
+        fs.to_csv(os.path.join(out_dir, "by_agent_success_only.csv"), index=False)
+    else:
+        print("\n[info] No episodes ended with 'goal'; "
+              "skipping the conditional stop_step table.")
+
+    # ---- Raw per-episode table ----
+    df.to_csv(os.path.join(out_dir, "per_episode.csv"), index=False)
     print(f"\n[analysis] CSVs saved to: {out_dir}")
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def main():
-    parser = argparse.ArgumentParser(description="Quantitative summary for simulation results")
-    parser.add_argument("--run_dir", default="results/quantitative/agent_3", help="Directory containing episode subdirectories (default: results/quantitative/agent_3)")
-    parser.add_argument("--out_dir", default=None, help="Root output directory (default: <run_dir>); CSVs are saved under <out_dir>/summary/")
-    args = parser.parse_args()
+    p = argparse.ArgumentParser(
+        description="Quantitative summary aggregated by agent count and seed")
+    p.add_argument("--root", default="results/quantitative",
+                   help="Root directory containing the agent_* subdirectories")
+    p.add_argument("--out_dir", default=None,
+                   help="Output directory (default: <root>/summary)")
+    p.add_argument("--per_map", action="store_true",
+                   help="Also emit the agent x map secondary table")
+    args = p.parse_args()
 
-    run_dir = args.run_dir
-    out_dir = args.out_dir or run_dir
-
-    if not os.path.isdir(run_dir):
-        print(f"[error] run_dir does not exist: {run_dir}")
+    if not os.path.isdir(args.root):
+        print(f"[error] root does not exist: {args.root}")
         return
 
-    df = collect_summaries(run_dir)
+    df = collect(args.root)
     if df.empty:
-        print(f"[error] No termination_summary.txt files found under: {run_dir}")
+        print(f"[error] No termination_summary.txt found under: {args.root}")
         return
 
-    print(f"[analysis] Found {len(df)} episodes in: {run_dir}")
-    report(df, out_dir)
+    missing = df["seed"].isna() | df["num_agent"].isna()
+    if missing.any():
+        print(f"[warn] Dropping {int(missing.sum())} records "
+              f"with unresolved seed/num_agent")
+        df = df[~missing]
+
+    df["num_agent"] = df["num_agent"].astype(int)
+    df["seed"]      = df["seed"].astype(int)
+
+    print(f"[analysis] {len(df)} episodes | "
+          f"agents={sorted(df['num_agent'].unique())} | "
+          f"seeds={sorted(df['seed'].unique())} | "
+          f"maps={sorted(df['map_tag'].unique())}")
+
+    report(df, args.out_dir or os.path.join(args.root, "summary"), args.per_map)
 
 
 if __name__ == "__main__":
