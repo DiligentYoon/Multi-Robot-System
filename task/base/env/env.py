@@ -231,9 +231,7 @@ class Env():
         self.infos = {}
 
 
-    def reset(self, episode_seed: int = None) -> Tuple[np.ndarray, np.ndarray]:
-        if episode_seed is not None:
-            self.seed = episode_seed
+    def reset(self) -> Tuple[np.ndarray, np.ndarray]:
         # Load ground truth map and initial cell
         self.reached_goal = np.zeros((self.cfg.num_agent, 1), dtype=np.bool_)
         self.num_step = 0

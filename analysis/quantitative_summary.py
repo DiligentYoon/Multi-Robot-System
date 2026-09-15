@@ -178,16 +178,8 @@ def report(df: pd.DataFrame, out_dir: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Quantitative summary for simulation results")
-    parser.add_argument(
-        "--run_dir",
-        default="results/quantitative/agent_3",
-        help="Directory containing episode subdirectories (default: results/quantitative/agent_3)",
-    )
-    parser.add_argument(
-        "--out_dir",
-        default=None,
-        help="Root output directory (default: <run_dir>); CSVs are saved under <out_dir>/summary/",
-    )
+    parser.add_argument("--run_dir", default="results/quantitative/agent_3", help="Directory containing episode subdirectories (default: results/quantitative/agent_3)")
+    parser.add_argument("--out_dir", default=None, help="Root output directory (default: <run_dir>); CSVs are saved under <out_dir>/summary/")
     args = parser.parse_args()
 
     run_dir = args.run_dir

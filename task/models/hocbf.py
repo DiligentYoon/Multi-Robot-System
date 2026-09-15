@@ -1,4 +1,5 @@
 import math
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -36,7 +37,7 @@ class DifferentiableCBFLayer(nn.Module):
         self.max_neighbors = self.max_agents - 1
         
         self.num_input = 2
-        self.num_slack = 3
+        self.num_slack = 1
 
         self.num_vars = self.num_input + self.num_slack
         self.num_hocbf_constraints = self.max_obs + self.max_agents + 1 # obs + agent-collision + connectivity
@@ -73,10 +74,11 @@ class DifferentiableCBFLayer(nn.Module):
 
         # --- 1. 최적화 변수 정의 ---
         u = cp.Variable(self.num_input, name='u')
-        delta_obs = cp.Variable(1, name='delta_obs')
-        delta_agent = cp.Variable(1, name='delta_agent')
+        # delta_obs = cp.Variable(1, name='delta_obs')
+        # delta_agent = cp.Variable(1, name='delta_agent')
         delta_conn = cp.Variable(1, name='delta_conn')
-        x_vars_for_constraints = cp.hstack([u, delta_obs, delta_agent, delta_conn])
+        # x_vars_for_constraints = cp.hstack([u, delta_obs, delta_agent, delta_conn])
+        x_vars_for_constraints = cp.hstack([u, delta_conn])
 
         # --- 2. 파라미터 정의 ---
         # 목적 함수용 파라미터
@@ -88,9 +90,12 @@ class DifferentiableCBFLayer(nn.Module):
         # --- 3. 목적 함수 정의 ---
         objective = cp.Minimize(
             cp.sum_squares(u - u_ref) + 
-            self.cfg['w_slack'] * cp.sum_squares(delta_obs) + 
-            self.cfg['w_slack'] * cp.sum_squares(delta_agent) + 
             self.cfg['w_slack'] * cp.sum_squares(delta_conn))
+        # objective = cp.Minimize(
+        #     cp.sum_squares(u - u_ref) + 
+        #     self.cfg['w_slack'] * cp.sum_squares(delta_obs) + 
+        #     self.cfg['w_slack'] * cp.sum_squares(delta_agent) + 
+        #     self.cfg['w_slack'] * cp.sum_squares(delta_conn))
 
         # --- 4. 제약 조건 정의 (Gx <= h 행렬 형태 유지) ---
         constraints = [ G @ x_vars_for_constraints <= h ]
@@ -103,11 +108,15 @@ class DifferentiableCBFLayer(nn.Module):
         self.layer = CvxpyLayer(
             problem,
             parameters=[u_ref, G, h],
-            variables=[u, delta_obs, delta_agent, delta_conn])
+            variables=[u, delta_conn])
+        # self.layer = CvxpyLayer(
+        #     problem,
+        #     parameters=[u_ref, G, h],
+        #     variables=[u, delta_obs, delta_agent, delta_conn])
 
     def forward(self, 
                 u_nominal: torch.Tensor, 
-                state: Dict[str, List[np.ndarray]] | List[Dict[str, List[np.ndarray]]]) -> tuple[torch.Tensor, bool]:
+                state: Dict[str, List[np.ndarray]] | List[Dict[str, List[np.ndarray]]]) -> tuple[torch.Tensor, dict]:
         """
         :param u_nominal: 제안된 공칭 제어 입력 (B & N, 2)
         :param state: 현재 상태 정보를 담은 딕셔너리
@@ -130,6 +139,8 @@ class DifferentiableCBFLayer(nn.Module):
             }
             state = state_dict # Overwrite state with the new flattened dictionary
 
+        info = {}
+        num_agent = u_nominal.shape[0]
         device = self.device
         dtype = self.dtype
         B = u_nominal.shape[0]
@@ -182,8 +193,8 @@ class DifferentiableCBFLayer(nn.Module):
         current_idx = 0
         # Box Constraints
         G[:, 0, 2] = -1.0; h[:, 0] = 0.0  # -delta <= 0
-        G[:, 1, 3] = -1.0; h[:, 1] = 0.0
-        G[:, 2, 4] = -1.0; h[:, 2] = 0.0
+        # G[:, 1, 3] = -1.0; h[:, 1] = 0.0
+        # G[:, 2, 4] = -1.0; h[:, 2] = 0.0
         current_idx = self.num_slack
     
         # --- 정적 장애물 제약 ---
@@ -197,10 +208,10 @@ class DifferentiableCBFLayer(nn.Module):
         # Form : 2l_x * a + 2l_y * v * w <= 2v^2 + k_1 * \dot{h} + k_2 * h
         G_obs_a = (2 * lx_obs * obs_mask)
         G_obs_w = (2 * ly_obs * v_current * obs_mask)
-        G_obs_delta = -1.0 * obs_mask
+        # G_obs_delta = -1.0 * obs_mask
         G[:, current_idx:current_idx+self.max_obs, 0] = G_obs_a
         G[:, current_idx:current_idx+self.max_obs, 1] = G_obs_w
-        G[:, current_idx:current_idx+self.max_obs, 2] = G_obs_delta                     
+        # G[:, current_idx:current_idx+self.max_obs, 2] = G_obs_delta                     
         h[:, current_idx:current_idx+self.max_obs] = h_rhs_obs
         h[:, current_idx:current_idx+self.max_obs][obs_mask == 0] = 1e3
         current_idx += self.max_obs
@@ -217,11 +228,11 @@ class DifferentiableCBFLayer(nn.Module):
 
         G_avoid_a = 2.0 * lx_ag * agents_mask
         G_avoid_w = (2.0 * ly_ag * v_current - 2.0 * ly_ag * v_jx + 2.0 * lx_ag * v_jy) * agents_mask
-        G_avoid_delta = -1.0 * agents_mask
+        # G_avoid_delta = -1.0 * agents_mask
         
         G[:, current_idx:current_idx+self.max_neighbors, 0] = G_avoid_a
         G[:, current_idx:current_idx+self.max_neighbors, 1] = G_avoid_w
-        G[:, current_idx:current_idx+self.max_neighbors, 3] = G_avoid_delta
+        # G[:, current_idx:current_idx+self.max_neighbors, 3] = G_avoid_delta
         h[:, current_idx:current_idx+self.max_neighbors] = h_rhs_avoid
         h[:, current_idx:current_idx+self.max_neighbors][agents_mask == 0] = 1e3
         current_idx += self.max_neighbors
@@ -240,7 +251,7 @@ class DifferentiableCBFLayer(nn.Module):
 
         G[:, current_idx, 0] = G_conn_a.squeeze(-1)
         G[:, current_idx, 1] = G_conn_w.squeeze(-1)
-        G[:, current_idx, 4] = G_conn_delta.squeeze(-1)
+        G[:, current_idx, 2] = G_conn_delta.squeeze(-1)
         h[:, current_idx] = h_rhs_conn.squeeze(-1)
         h[:, current_idx][(closest_mask == 0).squeeze()] = 1e3
 
@@ -252,13 +263,35 @@ class DifferentiableCBFLayer(nn.Module):
             u_ref_ = u_nominal.to(device=device, dtype=dtype)
             G_ = G
             h_ = h
-        solution = self.layer(u_ref_, G_, h_, solver_args={'solve_method': 'ECOS'})[0]
-        feasible = True
-        
-        # viol = (G[:, :, :2] @ solution.unsqueeze(-1)).squeeze(-1) - h
-        # print("max ineq viol per batch:", viol.max(dim=1).values.detach().cpu().numpy())
+
+        start = time.perf_counter()
+        try:
+            solution = self.layer(u_ref_, G_, h_, solver_args={'solve_method': 'ECOS'})[0]
+            feasible = True
+        except Exception as e:
+            solution = torch.zeros((num_agent, self.num_input), device=self.device, dtype=G.dtype)
+            solution[:, 0] = -self.a_max
+            solution[:, 1] = u_ref_[:, 1]
+            for i in range(num_agent):
+                try:
+                    sol_i = self.layer(u_ref_[i], G_[i], h_[i], solver_args={'solve_method': 'ECOS'})[0]
+                    solution[i] = sol_i
+                except:
+                    continue
+            feasible = False
+        viol = (G[:, :, :2] @ solution.unsqueeze(-1)).squeeze(-1) - h
 
         # 솔루션에서 안전한 제어 입력 u_safe만 추출
         u_safe = solution.to(device=u_nominal.device, dtype=u_nominal.dtype)
-        
-        return u_safe, feasible
+
+        # Information
+        info["feasible"] = feasible
+        info["viol_obs"] = np.zeros(num_agent)
+        info["viol_agent"] = np.zeros(num_agent)
+        info["viol_conn"] = torch.max(viol[:, self.max_obs+self.max_neighbors:], dim=-1).values.detach().cpu().numpy()
+        # info["viol_obs"] = torch.max(viol[:, :self.max_obs], dim=-1).values.detach().cpu().numpy()
+        # info["viol_agent"] = torch.max(viol[:, self.max_obs:self.max_obs+self.max_neighbors], dim=-1).values.detach().cpu().numpy()
+        # info["viol_conn"] = torch.max(viol[:, self.max_obs+self.max_neighbors:], dim=-1).values.detach().cpu().numpy()
+        info["computing_time"] = time.perf_counter() - start
+
+        return u_safe, info

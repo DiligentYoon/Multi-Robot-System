@@ -24,6 +24,7 @@ import copy
 
 def run_single_simulation(
     cfg: dict,
+    seed: int,
     episode_index: int,
     map_tag: str,
     steps: int,
@@ -33,18 +34,18 @@ def run_single_simulation(
     gif_fps: int = 30,            # FPS of GIF
 ) -> None:
     
-    seed = cfg['env']['seed']
     torch.manual_seed(seed)
     np.random.seed(seed)
 
     env_cfg = copy.deepcopy(cfg)
     map_filepath = f"maps/{map_tag}/map_{episode_index:03d}.png"
     env_cfg['env']['map']['map_filepath'] = map_filepath
+    env_cfg['env']['seed'] = seed
 
     print(f"\n=== Simulation for {map_tag} (episode_index={episode_index}) ===")
 
     # --- Output dir for this map ---
-    map_out_dir = os.path.join(root_out_dir, f"{map_tag}_{episode_index:03d}")
+    map_out_dir = os.path.join(root_out_dir, f"{map_tag}_seed_{seed}_{episode_index:03d}")
     os.makedirs(map_out_dir, exist_ok=True)
     print(f"[{map_tag} {episode_index}] Results dir: {map_out_dir}")
 
@@ -85,7 +86,7 @@ def run_single_simulation(
     frozen_thresh   = 20 
 
     # --- Reset env ---
-    obs, state, info = env.reset(episode_index=episode_index)
+    obs, state, info = env.reset()
     
     # --- Termination info ---
     termination_info = {
@@ -109,7 +110,7 @@ def run_single_simulation(
             raw_actions_t = torch.tensor(raw_actions, device=device, dtype=torch.float32)
 
             # --- CBF Safety Filter ---
-            actions, feasible = cbf_layer(raw_actions_t, info["safety"])
+            actions, solve_info = cbf_layer(raw_actions_t, info["safety"])
 
             # --- Env step ---
             next_obs, next_state, reward, terminated, truncated, next_info = env.step(actions)
@@ -155,7 +156,7 @@ def run_single_simulation(
                     termination_info["stop_reason"] = "unknown"
 
             # --- Logging ---
-            logger.record(next_info, raw_actions, actions)
+            logger.record(next_info, solve_info, raw_actions, actions)
 
             # --- CLI Log ---
             locs = next_info["viz"]["robot_locations"]
@@ -164,8 +165,8 @@ def run_single_simulation(
                  for i in range(next_info["viz"]["num_agent"])]
             )
             print(
-                f"[{map_tag} {episode_index}] "
-                f"Step {step_num + 1}/{steps} | Done: {bool(done)} | {pos_str}"
+                f"[{map_tag} | Seed: {seed} | Episode: {episode_index}] "
+                f"Step {step_num + 1}/{steps} | Feasible: {bool(solve_info['feasible'])} | {pos_str}"
             )
 
             # --- Save Frame (PNG / GIF) ---
@@ -344,18 +345,22 @@ def compute_cbf_violation_rates(logger: SimLogger, verbose: bool = True) -> dict
     T = min(len(histories[j]) for j in range(N))
     if T == 0:
         return {
+            "feasible_rate": 0.0,
             "obs_violation_rate":   0.0,
             "avoid_violation_rate": 0.0,
             "conn_violation_rate":  0.0,
             "total_steps":          0,
         }
 
+    feasible = 0
     obs_violated   = 0
     avoid_violated = 0
     conn_violated  = 0
 
     for t in range(T):
         # Ignore numerical errors
+        if any(histories[j][t]["feasible"] == 1 for j in range(N)):
+            feasible       += 1
         if any(histories[j][t]["obs_avoid"]   < -eps for j in range(N)):
             obs_violated   += 1
         if any(histories[j][t]["agent_avoid"] < -eps for j in range(N)):
@@ -363,17 +368,20 @@ def compute_cbf_violation_rates(logger: SimLogger, verbose: bool = True) -> dict
         if any(histories[j][t]["agent_conn"]  < -eps for j in range(N)):
             conn_violated  += 1
 
+    feasible_rate = feasible / T
     obs_rate   = obs_violated   / T
     avoid_rate = avoid_violated / T
     conn_rate  = conn_violated  / T
 
     if verbose:
         print(f"cbf_total_steps = {T}")
+        print(f"feasible_rate            = {feasible_rate:.6f}")
         print(f"cbf_obs_violation_rate   = {obs_rate:.6f}")
         print(f"cbf_avoid_violation_rate = {avoid_rate:.6f}")
         print(f"cbf_conn_violation_rate  = {conn_rate:.6f}")
 
     return {
+        "feasible_rate": float(feasible_rate),
         "obs_violation_rate":   float(obs_rate),
         "avoid_violation_rate": float(avoid_rate),
         "conn_violation_rate":  float(conn_rate),
@@ -383,75 +391,90 @@ def compute_cbf_violation_rates(logger: SimLogger, verbose: bool = True) -> dict
 
 def run_validation(
     cfg: dict,
+    seeds: List[int], 
     i_shape_indices: List[int],
     square_indices: List[int],
     custom_indices: List[int],
     steps: int = 5000,
     frame_interval: int = 100,
     root_out_dir: str = "results/default",
-    gif_interval: int = 5,
+    gif_interval: int = 10,
     gif_fps: int = 30,
 ):
     os.makedirs(root_out_dir, exist_ok=True)
-    # i_shape
-    for idx in i_shape_indices:
-        run_single_simulation(
-            cfg=cfg,
-            episode_index=idx,
-            map_tag="i_shape",
-            steps=steps,
-            root_out_dir=root_out_dir,
-            frame_interval=frame_interval,
-            gif_interval=gif_interval,
-            gif_fps=gif_fps,
-        )
+    for seed in seeds:
+        # i_shape
+        for idx in i_shape_indices:
+            run_single_simulation(
+                cfg=cfg,
+                seed=seed,
+                episode_index=idx,
+                map_tag="i_shape",
+                steps=steps,
+                root_out_dir=root_out_dir,
+                frame_interval=frame_interval,
+                gif_interval=gif_interval,
+                gif_fps=gif_fps,
+            )
 
-    # square
-    for idx in square_indices:
-        run_single_simulation(
-            cfg=cfg,
-            episode_index=idx,
-            map_tag="square",
-            steps=steps,
-            root_out_dir=root_out_dir,
-            frame_interval=frame_interval,
-            gif_interval=gif_interval,
-            gif_fps=gif_fps,
-        )
+        # square
+        for idx in square_indices:
+            run_single_simulation(
+                cfg=cfg,
+                seed=seed,
+                episode_index=idx,
+                map_tag="square",
+                steps=steps,
+                root_out_dir=root_out_dir,
+                frame_interval=frame_interval,
+                gif_interval=gif_interval,
+                gif_fps=gif_fps,
+            )
 
-    # custom
-    for idx in custom_indices:
-        run_single_simulation(
-            cfg=cfg,
-            episode_index=idx,
-            map_tag="custom",
-            steps=steps,
-            root_out_dir=root_out_dir,
-            frame_interval=frame_interval,
-            gif_interval=gif_interval,
-            gif_fps=gif_fps
-        )
+        # custom
+        for idx in custom_indices:
+            run_single_simulation(
+                cfg=cfg,
+                seed=seed,
+                episode_index=idx,
+                map_tag="custom",
+                steps=steps,
+                root_out_dir=root_out_dir,
+                frame_interval=frame_interval,
+                gif_interval=gif_interval,
+                gif_fps=gif_fps
+            )
 
 
 if __name__ == '__main__':
     with open("config/config.yaml", 'r') as f:
         config = yaml.safe_load(f)
 
-    i_shape_indices = [3, 15, 44, 68, 84, 89] 
+    seeds = [64, 91]
+    # i_shape_indices = [3, 15, 44, 68, 84, 89] 
+    i_shape_indices = []
     square_indices  = [34, 49, 69]
-    custom_indices = [1, 2, 3]
-    for i in [5]:
+    # square_indices  = []
+    # custom_indices = [1, 2, 3]
+    custom_indices = []
+    try:
+        for i in [7]:
 
-        config["env"]["num_agent"] = i
+            config["env"]["num_agent"] = i
 
-        run_validation(
-            cfg=config,
-            i_shape_indices=i_shape_indices,
-            square_indices=square_indices,
-            custom_indices=custom_indices,
-            steps=10000,
-            frame_interval=50,
-            root_out_dir=f"results/quantitative/agent_{config['env']['num_agent']}",
-            gif_interval=5,
-            gif_fps=30,
-        )
+            run_validation(
+                cfg=config,
+                seeds=seeds,
+                i_shape_indices=i_shape_indices,
+                square_indices=square_indices,
+                custom_indices=custom_indices,
+                steps=10000,
+                frame_interval=100,
+                root_out_dir=f"results/quantitative/agent_{config['env']['num_agent']}",
+                gif_interval=10,
+                gif_fps=30,
+            )
+    except KeyboardInterrupt:
+        print("Keyboard Exception")
+    finally:
+        print("End simulations")

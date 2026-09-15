@@ -20,14 +20,16 @@ class SimLogger:
         self.nominal_inputs_history: list[list] = [[] for _ in range(num_agents)]
         self.safe_inputs_history: list[list] = [[] for _ in range(num_agents)]
         self.cbf_history: list[list[dict]] = [[] for _ in range(num_agents)]
+        self.cbf_result_history: list[list[dict]] = [[] for _ in range(num_agents)]
         self.gif_frames: list[np.ndarray] = []
 
-    def record(self, info: dict, raw_actions: np.ndarray, safe_actions) -> None:
+    def record(self, info: dict, solve_info: dict, raw_actions: np.ndarray, safe_actions) -> None:
         """Record one simulation step.
 
         Args:
             info: next_info returned by env.step(). Must contain info["viz"] and
                   info["safety"].
+            solve_info: HOCBF-QP Solve info (violation & computing time)
             raw_actions: nominal actions, shape (N, 2), numpy array.
             safe_actions: CBF-filtered actions, shape (N, 2), torch.Tensor.
         """
@@ -35,17 +37,19 @@ class SimLogger:
         obstacle_states = info["viz"]["obstacle_states"]
         num_obstacles = info["viz"]["num_obstacles"]
 
+        feasible = solve_info["feasible"]
+        viol_obs = solve_info["viol_obs"]
+        viol_agent = solve_info["viol_agent"]
+        viol_conn = solve_info["viol_conn"]
+        computing_time = solve_info["computing_time"]
+
         for j in range(self._num_agents):
             # Path
-            self.path_history[j].append(
-                (float(robot_locations[j, 0]), float(robot_locations[j, 1]))
-            )
+            self.path_history[j].append((float(robot_locations[j, 0]), float(robot_locations[j, 1])))
 
             # Control inputs
             self.nominal_inputs_history[j].append(raw_actions[j].copy())
-            self.safe_inputs_history[j].append(
-                safe_actions[j].detach().cpu().numpy()
-            )
+            self.safe_inputs_history[j].append(safe_actions[j].detach().cpu().numpy())
 
             # CBF values
             obs_state_j = obstacle_states[j, :num_obstacles[j]]
@@ -71,10 +75,16 @@ class SimLogger:
             )
 
             self.cbf_history[j].append({
+                "feasible": feasible,
                 "obs_avoid":   min_obs_dist_sq - self._d_obs ** 2,
                 "agent_avoid": min_agent_avoid,
                 "agent_conn":  self._neighbor_radius ** 2 - min_agent_dist_sq,
+                "obs_avoid_viol": viol_obs[j],
+                "agent_avoid_viol": viol_agent[j],
+                "agent_conn_viol": viol_conn[j],
+                "solve_time": computing_time
             })
+
 
     def append_gif_frame(self, fig) -> None:
         """Capture the current figure as an RGB array and store it."""
@@ -94,7 +104,8 @@ class SimLogger:
             nom  = np.asarray(self.nominal_inputs_history[i], dtype=float) # (T, 2)
             safe = np.asarray(self.safe_inputs_history[i], dtype=float)    # (T, 2)
             cbf_arr = np.asarray(
-                [[d["obs_avoid"], d["agent_avoid"] ,d["agent_conn"]] for d in self.cbf_history[i]],
+                [[d["feasible"], d["obs_avoid"], d["agent_avoid"], d["agent_conn"],
+                  d["obs_avoid_viol"], d["agent_avoid_viol"], d["agent_conn_viol"], d["solve_time"]] for d in self.cbf_history[i]],
                 dtype=float,
             )  # (T, 2)
 
@@ -107,9 +118,8 @@ class SimLogger:
             steps_arr = np.arange(T)
             time_arr  = steps_arr * dt
 
-            # step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_conn
             data = np.column_stack([steps_arr, time_arr, traj, nom, safe, cbf_arr])
-            header = "step, time, x, y, a_nom, w_nom, a_safe, w_safe, obs_avoid, agent_avoid, agent_conn"
+            header = "step, time, x, y, a_nom, w_nom, a_safe, w_safe, feasible, obs_avoid, agent_avoid, agent_conn, obs_avoid_viol, agent_avoid_viol, agent_conn_viol, solve_time"
 
             csv_path = os.path.join(out_dir, f"agent_{i}_log.csv")
             np.savetxt(csv_path, data, delimiter=",", header=header, comments="")

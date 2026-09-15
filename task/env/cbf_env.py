@@ -77,7 +77,7 @@ class CBFEnv(Env):
             raise ValueError(f"Unknown assign_mode: {self.assign_mode}")
         self.router = AgentRouter()
 
-    def reset(self, episode_index: int = None):
+    def reset(self):
         # 나머지 플래그는 사용하기 전 계산 되므로 초기화 X
         self.actions = np.zeros((self.num_agent, self.cfg.num_act), dtype=np.float32)
         self.is_collided_obstacle = np.zeros((self.num_agent, 1), dtype=np.bool_)
@@ -87,7 +87,7 @@ class CBFEnv(Env):
         self.robot_speeds = np.zeros(self.num_agent, dtype=np.float32)
         self.last_explored_area = 0
         self.tree_interval = 0
-        super().reset(episode_index)
+        super().reset()
 
         #   - GT의 START 마스크가 있으면 그 주변 공개
         #   - 없으면 현재 에이전트 위치 주변을 공개
