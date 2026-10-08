@@ -26,6 +26,7 @@ class CBFEnvCfg(EnvCfg):
         # Graph Info
         self.valid_threshold = 0.15
 
-        self.assign_mode = "target_unknown" # "target_unknown" | "target_frontier"
+        if not hasattr(self, "assign_mode"):
+            self.assign_mode = "target_unknown" # target_unknown | target_frontier | target_frontier_spread
         if not hasattr(self, "graph_mode"):
             self.graph_mode = "mst"  # "mst" | "nn_tree"

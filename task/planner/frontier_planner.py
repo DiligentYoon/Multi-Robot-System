@@ -3,9 +3,15 @@ import cv2
 from scipy.optimize import linear_sum_assignment
 
 from .base_planner import AbstractPlanner
+from .frontier_spread import select_frontier_targets
 
 
 class FrontierPlanner(AbstractPlanner):
+    def __init__(self, spread_control=False, max_spread_m=.8, min_pair_m=.08, max_anchor_trials=100):
+        self.spread_control = bool(spread_control)
+        self.max_spread_m, self.min_pair_m = float(max_spread_m), float(min_pair_m)
+        self.max_anchor_trials = max_anchor_trials
+
     def plan(self, map_info, robot_locations, robot_velocities,
              num_agent, cfg) -> dict:
 
@@ -68,7 +74,11 @@ class FrontierPlanner(AbstractPlanner):
                 scores[agent_i, idx] = (w_u * u_score) - (w_d * d_score) - (w_o * o_score)
 
         # 4) Hungarian matching으로 에이전트-frontier 최적 할당
-        if M >= num_agent:
+        audit = {}
+        if self.spread_control:
+            idx_selected, audit = select_frontier_targets(frontier_rc_all, scores, maps.res_m,
+                self.max_spread_m, self.min_pair_m, self.max_anchor_trials)
+        elif M >= num_agent:
             # Case A: Frontier가 충분함 -> Hungarian matching으로 최적 할당
             cost_matrix = -scores  # 최대값 찾기 위해 부호 반전
             row_ind, col_ind = linear_sum_assignment(cost_matrix)
@@ -98,10 +108,15 @@ class FrontierPlanner(AbstractPlanner):
         print(f"[target_frontier] {M} safe frontiers available")
         print(f"[target_frontier] Assigned {num_agent} targets via scoring-based Hungarian matching")
         print(f"[target_frontier] Root agent: {root_id}, Team decision complete")
+        if self.spread_control:
+            print(f"[target_frontier_spread] spread={audit['target_spread_m']:.3f}m "
+                  f"min_sep={audit['target_min_sep_m']}m satisfied={audit['geometry_satisfied']} "
+                  f"fallback={audit['fallback_reason'] or 'none'}")
 
         return {
             "assigned_rc": assigned_rc,
             "root_id"    : root_id,
+            "audit"      : audit,
             "viz": {
                 "targets_prob_heat": None,
                 "assigned_rc_viz"  : assigned_rc.copy(),

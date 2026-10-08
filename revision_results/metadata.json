@@ -1,0 +1,26 @@
+{
+  "source_commit": "63be0aabd76554a363a8f871a831c85eed580ded",
+  "parameters": {
+    "root": "results/quantitative/round_0",
+    "out_dir": "revision_results",
+    "project_root": "C:\\Users\\grape\\OneDrive\\Multi_Robot_System",
+    "map_manifest": null,
+    "eps": 0.001,
+    "radius": 0.8,
+    "resolution": 0.01,
+    "a_max": 0.1,
+    "w_max": 1.0,
+    "workers": 4,
+    "deterministic_variants": [
+      "team_ablation"
+    ]
+  },
+  "n_saved_episodes": 480,
+  "n_primary_episodes": 336,
+  "n_issue_episodes": 80,
+  "continuous_aggregation": "mean within each seed, then mean and sample std across seeds",
+  "time_definition": "CSV logged time; duration is count*dt",
+  "runtime_definition": "one solve_time per aligned team step, not per agent",
+  "cmr_definition": "100*(1-mean(any(agent_conn < -eps)))",
+  "goal_definition": "float32 padded MapInfo grid conversion; Euclidean distance to union of goal cells"
+}

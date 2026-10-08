@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import copy
+import time
 import torch
 from typing import Tuple, List
 
@@ -43,6 +44,7 @@ class CBFEnv(Env):
         self.local_frontiers = np.zeros((self.num_agent, self.cfg.num_rays, 2), dtype=np.float32)
 
         self.assigned_rc = np.zeros((self.num_agent, 2), dtype=int)
+        self.planner_audit = {}
 
         # [agent_dim, max_dim, specific_dim]
         self.obstacle_states = np.zeros((self.num_agent, self.cfg.max_obs, 2), dtype=np.float32)
@@ -73,6 +75,11 @@ class CBFEnv(Env):
             self.planner = TargetUnknownPlanner()
         elif self.assign_mode == "target_frontier":
             self.planner = FrontierPlanner()
+        elif self.assign_mode == "target_frontier_spread":
+            self.planner = FrontierPlanner(spread_control=True,
+                max_spread_m=getattr(self.cfg, 'frontier_max_spread_m', .8),
+                min_pair_m=getattr(self.cfg, 'frontier_min_pair_m', .08),
+                max_anchor_trials=getattr(self.cfg, 'frontier_max_anchor_trials', 100))
         else:
             raise ValueError(f"Unknown assign_mode: {self.assign_mode}")
         self.router = AgentRouter()
@@ -418,9 +425,12 @@ class CBFEnv(Env):
 
     def _update_infos(self):
         infos = {}
+        coordination_s = 0.0
+        coordination_updated = self.tree_interval % self.cfg.centralized_decimation == 0
 
         # [A] Centralized Planning
-        if self.tree_interval % self.cfg.centralized_decimation == 0:
+        if coordination_updated:
+            coordination_start = time.perf_counter()
             self.no_path_until_refresh[:] = False
 
             plan_result = self.planner.plan(
@@ -432,6 +442,7 @@ class CBFEnv(Env):
             )
 
             self.assigned_rc = plan_result["assigned_rc"]
+            self.planner_audit = plan_result.get("audit", {})
             root_id = plan_result["root_id"]
             self.root_mask.fill(0)
             self.root_mask[root_id] = 1
@@ -442,6 +453,8 @@ class CBFEnv(Env):
             else:
                 self.connectivity_graph.update_and_compute_mst(self.robot_locations, root_id)
 
+            coordination_s = time.perf_counter() - coordination_start
+
             # Visualization info
             self.targets_prob_heat = plan_result["viz"]["targets_prob_heat"]
             self.assigned_rc_viz   = plan_result["viz"]["assigned_rc_viz"]
@@ -450,6 +463,7 @@ class CBFEnv(Env):
             self.valid_regions     = None
 
         # [B] Per-Agent Routing (A*)
+        routing_start = time.perf_counter()
         routing = self.router.route_all(
             map_info              = self.map_info,
             connectivity_graph    = self.connectivity_graph,
@@ -465,6 +479,8 @@ class CBFEnv(Env):
             cfg                   = self.cfg,
             no_path_until_refresh = self.no_path_until_refresh,
         )
+
+        routing_s = time.perf_counter() - routing_start
 
         # [C] CBFEnv properties
         self.end_pos_world         = routing["end_pos_world"]
@@ -485,6 +501,8 @@ class CBFEnv(Env):
             "follower"  : routing["follower_list"],
         }
 
+        infos["timing"] = {"coordination_updated": coordination_updated, "coordination_s": coordination_s, "routing_s": routing_s}
+        infos["planner"] = self.planner_audit.copy()
         infos["viz"] = self._get_viz_info()
         self.tree_interval += 1
         return infos

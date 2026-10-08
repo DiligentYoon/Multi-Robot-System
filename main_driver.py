@@ -18,6 +18,7 @@ from task.env.cbf_env import CBFEnv
 from task.models.hocbf import DifferentiableCBFLayer
 from task.utils.control_utils import get_nominal_control
 from task.logger.sim_logger import SimLogger
+from task.logger.revision_logger import RevisionLogger
 from visualization import draw_frame, make_figure
 import copy
 
@@ -32,13 +33,15 @@ def run_single_simulation(
     frame_interval: int = 50,     # Interval of PNG
     gif_interval: int | None = None,  # Interval of GIF
     gif_fps: int = 30,            # FPS of GIF
+    map_filepath: str | None = None,
+    raise_on_error: bool = False,
 ) -> None:
     
     torch.manual_seed(seed)
     np.random.seed(seed)
 
     env_cfg = copy.deepcopy(cfg)
-    map_filepath = f"maps/{map_tag}/map_{episode_index:03d}.png"
+    map_filepath = map_filepath or f"maps/{map_tag}/map_{episode_index:03d}.png"
     env_cfg['env']['map']['map_filepath'] = map_filepath
     env_cfg['env']['seed'] = seed
 
@@ -87,6 +90,7 @@ def run_single_simulation(
 
     # --- Reset env ---
     obs, state, info = env.reset()
+    revision_logger = RevisionLogger(map_out_dir, env, {"env": env_cfg["env"], "model": cfg["model"], "visualization": cfg.get("visualization", {})})
     
     # --- Termination info ---
     termination_info = {
@@ -97,6 +101,7 @@ def run_single_simulation(
 
     try:
         for step_num in range(steps):
+            control_start = time.perf_counter()
             # --- Nominal control ---
             raw_actions = get_nominal_control(
                 p_target=info["nominal"]["p_targets"],
@@ -114,6 +119,7 @@ def run_single_simulation(
 
             # --- Env step ---
             next_obs, next_state, reward, terminated, truncated, next_info = env.step(actions)
+            control_compute_s = time.perf_counter() - control_start
             done = bool(np.any(terminated) or np.any(truncated))
 
             # --- Check stopping sign ---
@@ -157,6 +163,7 @@ def run_single_simulation(
 
             # --- Logging ---
             logger.record(next_info, solve_info, raw_actions, actions)
+            revision_logger.record(step_num, env, info, next_info, solve_info, control_compute_s)
 
             # --- CLI Log ---
             locs = next_info["viz"]["robot_locations"]
@@ -209,6 +216,7 @@ def run_single_simulation(
     except Exception as e:
         print(f"[{map_tag} {episode_index}] Error during simulation loop: {e}")
         traceback.print_exc()
+        if raise_on_error: raise
 
     finally:
         # --- Save final frame ---
@@ -288,6 +296,11 @@ def run_single_simulation(
             logger.save_csv(map_out_dir, env.dt)
         except Exception as e:
             print(f"[{map_tag} {episode_index}] Failed to save CSV logs: {e}")
+
+        try:
+            revision_logger.save()
+        except Exception as e:
+            print(f"[{map_tag} {episode_index}] Failed to save batch logs: {e}")
 
         # --- GIF ---
         try:
