@@ -1,0 +1,16 @@
+map_tag: square
+seed: 91
+num_agent: 3
+episode_index: 49
+stopped: True
+stop_step: 1623
+stop_reason: frozen
+free_coverage: 0.619382
+covered_free_cells: 39376
+total_gt_free_cells: 63573
+belief_free_cells: 39376
+cbf_total_steps: 1624
+cbf_feasible_rate: 0.972906
+cbf_obs_violation_rate: 0.000000
+cbf_avoid_violation_rate: 0.000000
+cbf_conn_violation_rate: 0.084360

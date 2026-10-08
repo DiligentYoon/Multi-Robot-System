@@ -1,0 +1,16 @@
+map_tag: i_shape
+seed: 120
+num_agent: 5
+episode_index: 89
+stopped: True
+stop_step: 99
+stop_reason: robot_collision
+free_coverage: 0.236603
+covered_free_cells: 9987
+total_gt_free_cells: 42210
+belief_free_cells: 9987
+cbf_total_steps: 100
+cbf_feasible_rate: 1.000000
+cbf_obs_violation_rate: 0.000000
+cbf_avoid_violation_rate: 0.130000
+cbf_conn_violation_rate: 0.000000

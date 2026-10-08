@@ -1,0 +1,6 @@
+num_agent,seed,frozen,goal,obstacle_collision,total
+7,42,0,12,0,12
+7,64,0,12,0,12
+7,91,0,12,0,12
+7,120,1,10,1,12
+7,140,0,12,0,12

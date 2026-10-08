@@ -3,11 +3,12 @@
 **/gifs/
 **/__pycache__/
 **/*.pyc
-results/*
+# results/*
 !results/demo/
 results/demo/*
 !results/demo/demo_video.gif
 **/*.png
+**/*.gif
 **/.claude
 
 
