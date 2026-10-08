@@ -453,15 +453,15 @@ if __name__ == '__main__':
     with open("config/config.yaml", 'r') as f:
         config = yaml.safe_load(f)
 
-    seeds = [64, 91]
-    # i_shape_indices = [3, 15, 44, 68, 84, 89] 
-    i_shape_indices = []
+    seeds = [42, 64, 91, 120, 140]
+    i_shape_indices = [3, 15, 44, 68, 84, 89] 
+    # i_shape_indices = []
     square_indices  = [34, 49, 69]
     # square_indices  = []
-    # custom_indices = [1, 2, 3]
-    custom_indices = []
+    custom_indices = [1, 2, 3]
+    # custom_indices = []
     try:
-        for i in [7]:
+        for i in [3,5,7]:
 
             config["env"]["num_agent"] = i
 
@@ -473,7 +473,7 @@ if __name__ == '__main__':
                 custom_indices=custom_indices,
                 steps=10000,
                 frame_interval=100,
-                root_out_dir=f"results/quantitative/agent_{config['env']['num_agent']}",
+                root_out_dir=f"results/quantitative/agent_{config['env']['num_agent']}_default",
                 gif_interval=10,
                 gif_fps=30,
             )

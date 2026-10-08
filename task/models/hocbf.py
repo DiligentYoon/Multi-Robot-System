@@ -213,6 +213,7 @@ class DifferentiableCBFLayer(nn.Module):
         G[:, current_idx:current_idx+self.max_obs, 1] = G_obs_w
         # G[:, current_idx:current_idx+self.max_obs, 2] = G_obs_delta                     
         h[:, current_idx:current_idx+self.max_obs] = h_rhs_obs
+        # h[:, current_idx:current_idx+self.max_obs] = 1e3
         h[:, current_idx:current_idx+self.max_obs][obs_mask == 0] = 1e3
         current_idx += self.max_obs
 
@@ -234,6 +235,7 @@ class DifferentiableCBFLayer(nn.Module):
         G[:, current_idx:current_idx+self.max_neighbors, 1] = G_avoid_w
         # G[:, current_idx:current_idx+self.max_neighbors, 3] = G_avoid_delta
         h[:, current_idx:current_idx+self.max_neighbors] = h_rhs_avoid
+        # h[:, current_idx:current_idx+self.max_neighbors] = 1e3
         h[:, current_idx:current_idx+self.max_neighbors][agents_mask == 0] = 1e3
         current_idx += self.max_neighbors
 
@@ -253,6 +255,7 @@ class DifferentiableCBFLayer(nn.Module):
         G[:, current_idx, 1] = G_conn_w.squeeze(-1)
         G[:, current_idx, 2] = G_conn_delta.squeeze(-1)
         h[:, current_idx] = h_rhs_conn.squeeze(-1)
+        # h[:, current_idx] = 1e3
         h[:, current_idx][(closest_mask == 0).squeeze()] = 1e3
 
         if device == torch.device('cpu'):
