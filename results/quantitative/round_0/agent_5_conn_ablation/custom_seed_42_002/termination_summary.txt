@@ -1,0 +1,16 @@
+map_tag: custom
+seed: 42
+num_agent: 5
+episode_index: 2
+stopped: True
+stop_step: 1195
+stop_reason: goal
+free_coverage: 0.371111
+covered_free_cells: 70202
+total_gt_free_cells: 189167
+belief_free_cells: 70202
+cbf_total_steps: 1196
+cbf_feasible_rate: 1.000000
+cbf_obs_violation_rate: 0.000000
+cbf_avoid_violation_rate: 0.000000
+cbf_conn_violation_rate: 0.167224

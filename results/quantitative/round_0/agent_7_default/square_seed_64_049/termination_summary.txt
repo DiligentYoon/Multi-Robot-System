@@ -1,0 +1,13 @@
+map_tag: square
+episode_index: 49
+stopped: True
+stop_step: 1124
+stop_reason: goal
+free_coverage: 0.839665
+covered_free_cells: 53380
+total_gt_free_cells: 63573
+belief_free_cells: 53380
+cbf_total_steps: 1125
+cbf_obs_violation_rate: 0.000000
+cbf_avoid_violation_rate: 0.000000
+cbf_conn_violation_rate: 0.031111

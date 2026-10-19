@@ -1,0 +1,16 @@
+map_tag: i_shape
+seed: 42
+num_agent: 7
+episode_index: 89
+stopped: True
+stop_step: 1172
+stop_reason: goal
+free_coverage: 0.845155
+covered_free_cells: 35674
+total_gt_free_cells: 42210
+belief_free_cells: 35674
+cbf_total_steps: 1173
+cbf_feasible_rate: 0.872975
+cbf_obs_violation_rate: 0.000000
+cbf_avoid_violation_rate: 0.000000
+cbf_conn_violation_rate: 0.000000
