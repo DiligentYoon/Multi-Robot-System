@@ -112,4 +112,12 @@ Multi_Robot_System/
 
 ## Citation
 
-Update soon..
+```bibtex
+@article{yoon2026hierarchical,
+  title={Hierarchical Coordination and HOCBF-Based Safety Filtering for Connectivity-Aware Multi-UAV Navigation},
+  author={Yoon, Hongryeol and Yu, Suhyeong and Lee, Seokwon and Nam, Woochul},
+  journal={Aerospace},
+  year={2026},
+  publisher={Multidisciplinary Digital Publishing Institute}
+}
+```
